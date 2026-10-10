@@ -37,9 +37,12 @@ class Settings extends BaseController
                             return view('settings', $data);
                         }
 
-    public function tutorial()
+    public function getRevenueRates()
     {
-        return view('tutorial');
+        return $this->response->setJSON([
+            'success' => true,
+            'data' => json_decode($this->settingsModel->getSetting('revenue_rates') ?? '[]', true) ?: []
+        ]);
     }
 
     public function save()

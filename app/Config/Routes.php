@@ -39,6 +39,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 
     // Settings
     $routes->post('settings/save', 'Settings::save');
+    $routes->get('api/settings/revenue', 'Settings::getRevenueRates');
     $routes->post('settings/check-connection', 'Settings::checkConnection');
     $routes->post('settings/check-local', 'Settings::checkLocal');
     $routes->post('settings/check-bot-bridge', 'Settings::checkBotBridge');

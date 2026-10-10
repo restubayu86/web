@@ -1462,6 +1462,8 @@
         loadProfiles();
         loadDolphinProxies();
         loadPlaylists();
+        // Sync stream statuses on dashboard entry
+        fetch(`${baseUrl}api/stream/all`).catch(err => console.error('Sync error:', err));
         setInterval(() => {
             if (!document.hidden && state.busy.size === 0 && !state.bulkRunning) loadProfiles(true);
         }, REFRESH_MS);
