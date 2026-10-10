@@ -1,0 +1,2 @@
+User 'admin' dibuat.
+Password sementara: 1323dc082368031a
