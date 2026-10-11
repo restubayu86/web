@@ -674,6 +674,49 @@
                 </button>
             </div>
         </form>
+
+        <!-- Danger Zone & Change Password -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Reset Database -->
+            <div class="bg-dark-800/90 border border-red-900/50 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-orange-500"></div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20">
+                        <i class="bi bi-database-x text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Reset Database</h2>
+                        <p class="text-xs text-gray-400">Hapus semua data profil, proxy, playlist &amp; log</p>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-500 mb-4">Tindakan ini tidak dapat dibatalkan. User &amp; settings tidak akan dihapus.</p>
+                <button type="button" id="btn-reset-db" class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-red-600 hover:bg-red-500 text-white font-medium text-sm transition-all">
+                    <i class="bi bi-trash3"></i> Reset Database
+                </button>
+            </div>
+
+            <!-- Change Password -->
+            <div class="bg-dark-800/90 border border-gray-800 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20">
+                        <i class="bi bi-key text-lg"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base font-semibold text-white">Change Password</h2>
+                        <p class="text-xs text-gray-400">Ganti password akun yang sedang login</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="password" id="old_password" placeholder="Password Lama" class="w-full bg-dark-900 border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                    <input type="password" id="new_password" placeholder="Password Baru (min 6 karakter)" class="w-full bg-dark-900 border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                    <input type="password" id="confirm_password" placeholder="Konfirmasi Password Baru" class="w-full bg-dark-900 border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                    <button type="button" id="btn-change-password" class="w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium text-sm shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all">
+                        <i class="bi bi-shield-lock"></i> Change Password
+                    </button>
+                </div>
+            </div>
+        </div>
     </main>
 
     <!-- Application Script for Connection & Bot Testing -->
@@ -1184,6 +1227,74 @@
             if (pendingConnectAllChecks && Date.now() - pendingConnectAllChecks < 120000) {
                 void runAllSettingsChecks();
             }
+
+            // Reset Database
+            document.getElementById("btn-reset-db").addEventListener("click", function() {
+                Swal.fire({
+                    title: 'Reset Database?',
+                    text: 'Semua data profil, proxy, playlist, stream & log akan dihapus permanen!',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#374151',
+                    confirmButtonText: 'Ya, Reset!',
+                    background: '#111827',
+                    color: '#fff'
+                }).then((result) => {
+                    if (!result.isConfirmed) return;
+                    const btn = document.getElementById("btn-reset-db");
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> Resetting...';
+                    fetch(baseUrl + "settings/reset-database", {
+                        method: "POST",
+                        headers: { "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content }
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        Swal.fire({ icon: data.success ? 'success' : 'error', title: data.success ? 'Berhasil' : 'Gagal', text: data.message, background: '#111827', color: '#fff', confirmButtonColor: data.success ? '#06b6d4' : '#ef4444' });
+                    })
+                    .catch(e => Swal.fire({ icon: 'error', title: 'Error', text: e.message, background: '#111827', color: '#fff' }))
+                    .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash3"></i> Reset Database'; });
+                });
+            });
+
+            // Change Password
+            document.getElementById("btn-change-password").addEventListener("click", function() {
+                const oldPw = document.getElementById("old_password").value;
+                const newPw = document.getElementById("new_password").value;
+                const confirmPw = document.getElementById("confirm_password").value;
+                if (!oldPw || !newPw || !confirmPw) {
+                    Swal.fire({ icon: 'warning', title: 'Lengkapi Form', text: 'Semua field password wajib diisi.', background: '#111827', color: '#fff', confirmButtonColor: '#06b6d4' });
+                    return;
+                }
+                if (newPw !== confirmPw) {
+                    Swal.fire({ icon: 'error', title: 'Tidak Cocok', text: 'Konfirmasi password tidak cocok.', background: '#111827', color: '#fff', confirmButtonColor: '#ef4444' });
+                    return;
+                }
+                if (newPw.length < 6) {
+                    Swal.fire({ icon: 'warning', title: 'Terlalu Pendek', text: 'Password baru minimal 6 karakter.', background: '#111827', color: '#fff', confirmButtonColor: '#06b6d4' });
+                    return;
+                }
+                const btn = this;
+                btn.disabled = true;
+                btn.innerHTML = '<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> Processing...';
+                fetch(baseUrl + "auth/change-password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content },
+                    body: JSON.stringify({ old_password: oldPw, new_password: newPw })
+                })
+                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+                .then(({ ok, data }) => {
+                    Swal.fire({ icon: ok && data.success ? 'success' : 'error', title: ok && data.success ? 'Berhasil' : 'Gagal', text: data.message, background: '#111827', color: '#fff', confirmButtonColor: ok && data.success ? '#06b6d4' : '#ef4444' });
+                    if (ok && data.success) {
+                        document.getElementById("old_password").value = '';
+                        document.getElementById("new_password").value = '';
+                        document.getElementById("confirm_password").value = '';
+                    }
+                })
+                .catch(e => Swal.fire({ icon: 'error', title: 'Error', text: e.message, background: '#111827', color: '#fff' }))
+                .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-shield-lock"></i> Change Password'; });
+            });
 
             // Load logs on page load
             loadPythonLogs();

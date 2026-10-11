@@ -3,6 +3,7 @@
 namespace App\Controllers;
 
 use App\Libraries\DolphinLocalApi;
+use App\Libraries\Logger;
 use App\Libraries\BotBridge;
 use App\Models\PlaylistModel;
 use App\Models\PlaylistSongModel;
@@ -83,12 +84,18 @@ class Monitoring extends BaseController
                 $assignmentByProfile[(string) $assignment['profile_id']] = $assignment;
             }
 
+            // Ambil status running dari Local API
+            $runningProfiles = $this->localApi()->getRunningProfiles();
+
             foreach ($body['data'] as &$profile) {
                 $assignment = $assignmentByProfile[(string) ($profile['id'] ?? '')] ?? null;
                 $profile['playlistId'] = $assignment && $assignment['playlist_id'] !== null ?
                     (int) $assignment['playlist_id'] :
                     null;
                 $profile['playlistName'] = $assignment['playlist_name'] ?? null;
+                
+                // Tambahkan status running
+                $profile['running'] = isset($runningProfiles[(string) $profile['id']]);
             }
             unset($profile);
 
@@ -241,6 +248,7 @@ class Monitoring extends BaseController
 
         $result = $this->localApi()->start($profileId);
         if (!$result['success']) {
+            Logger::log($profileId, 'START PROFILE', 'error');
             return $this->localResponse($result);
         }
 
@@ -336,6 +344,8 @@ class Monitoring extends BaseController
             ])->setStatusCode(500);
         }
 
+        Logger::log($profileId, 'START PROFILE', 'success');
+
         return $this->response->setJSON([
             'success' => true,
             'profile_running' => true,
@@ -373,6 +383,7 @@ class Monitoring extends BaseController
 
         $result = $this->localApi()->stop($profileId);
         if (!$result['success']) {
+            Logger::log($profileId, 'STOP PROFILE', 'error');
             return $this->localResponse($result);
         }
 
@@ -401,6 +412,7 @@ class Monitoring extends BaseController
             $result['message'] = 'Profil dihentikan. ' . $bridgeWarning;
         }
         $result['profile_running'] = false;
+        Logger::log($profileId, 'STOP PROFILE', 'success');
         return $this->localResponse($result);
     }
 }

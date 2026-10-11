@@ -15,6 +15,12 @@ class App extends BaseConfig
      * WITH a trailing slash:
      *
      * E.g., http://example.com/
+     *
+     * Nilai ini hanya cadangan (port default `php spark serve`). Saat diakses
+     * lewat localhost / 127.0.0.1 / [::1], host dan port otomatis mengikuti
+     * request (lihat __construct), jadi `php spark serve --port=XXXX` langsung
+     * jalan tanpa mengubah file ini. Untuk domain lain, set `app.baseURL` di
+     * file .env (nilai di .env selalu menang).
      */
     public string $baseURL = 'http://localhost:8080/';
 
@@ -199,4 +205,37 @@ class App extends BaseConfig
      * @see http://www.w3.org/TR/CSP/
      */
     public bool $CSPEnabled = false;
+
+    public function __construct()
+    {
+        $this->baseURL = self::detectLoopbackBaseURL($this->baseURL);
+
+        // BaseConfig menerapkan override dari .env (app.baseURL) setelah ini.
+        parent::__construct();
+    }
+
+    /**
+     * Bentuk baseURL dari host:port request saat ini, hanya untuk host loopback
+     * (localhost, 127.0.0.1, [::1]). Host lain diabaikan agar header Host palsu
+     * tidak bisa mengubah baseURL; pakai .env untuk deployment dengan domain.
+     */
+    private static function detectLoopbackBaseURL(string $fallback): string
+    {
+        if (PHP_SAPI === 'cli') {
+            return $fallback;
+        }
+
+        $host = strtolower(trim((string) ($_SERVER['HTTP_HOST'] ?? '')));
+        if (preg_match('/^(localhost|127\.0\.0\.1|\[::1\])(?::(\d{1,5}))?$/', $host, $m) !== 1) {
+            return $fallback;
+        }
+
+        if (isset($m[2]) && ((int) $m[2] < 1 || (int) $m[2] > 65535)) {
+            return $fallback;
+        }
+
+        $https = ! empty($_SERVER['HTTPS']) && strtolower((string) $_SERVER['HTTPS']) !== 'off';
+
+        return ($https ? 'https' : 'http') . '://' . $host . '/';
+    }
 }

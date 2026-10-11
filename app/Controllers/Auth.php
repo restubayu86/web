@@ -256,4 +256,115 @@ class Auth extends BaseController
         session()->destroy();
         return redirect()->to('/login');
     }
+
+    public function verifyPassword()
+    {
+        $password = $this->request->getPost('password');
+        if ($password === null || $password === '') {
+            $json = $this->request->getJSON(true);
+            if (is_array($json) && isset($json['password'])) {
+                $password = $json['password'];
+            }
+        }
+        if ($password === null || $password === '') {
+            $password = $this->request->getVar('password');
+        }
+
+        if ($password === null || $password === '') {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Password is required.',
+            ])->setStatusCode(400);
+        }
+
+        $userId = session()->get('user_id');
+        if (!$userId) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Not authenticated.',
+            ])->setStatusCode(401);
+        }
+
+        $userModel = new UserModel();
+        $user = $userModel->find($userId);
+        if (!$user) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'User not found.',
+            ])->setStatusCode(404);
+        }
+
+        if (password_verify((string) $password, $user['password'])) {
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Password verified.',
+            ]);
+        }
+
+        return $this->response->setJSON([
+            'success' => false,
+            'message' => 'Password salah.',
+        ])->setStatusCode(401);
+    }
+
+    public function changePassword()
+    {
+        $oldPassword = $this->request->getPost('old_password');
+        $newPassword = $this->request->getPost('new_password');
+        
+        if (!$oldPassword || !$newPassword) {
+            $json = $this->request->getJSON(true);
+            if (is_array($json)) {
+                $oldPassword = $oldPassword ?? ($json['old_password'] ?? null);
+                $newPassword = $newPassword ?? ($json['new_password'] ?? null);
+            }
+        }
+
+        if (!$oldPassword || !$newPassword) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Password lama dan password baru wajib diisi.',
+            ])->setStatusCode(400);
+        }
+
+        $userId = session()->get('user_id');
+        if (!$userId) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Belum login.',
+            ])->setStatusCode(401);
+        }
+
+        $userModel = new UserModel();
+        $user = $userModel->find($userId);
+        if (!$user) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'User tidak ditemukan.',
+            ])->setStatusCode(404);
+        }
+
+        if (!password_verify((string) $oldPassword, $user['password'])) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Password lama salah.',
+            ])->setStatusCode(400);
+        }
+
+        if (strlen((string) $newPassword) < 6) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Password baru minimal 6 karakter.',
+            ])->setStatusCode(400);
+        }
+
+        $userModel->update($userId, [
+            'password' => password_hash((string) $newPassword, PASSWORD_DEFAULT)
+        ]);
+
+        return $this->response->setJSON([
+            'success' => true,
+            'message' => 'Password berhasil diubah!',
+        ]);
+    }
 }

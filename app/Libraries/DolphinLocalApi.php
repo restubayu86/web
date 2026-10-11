@@ -100,6 +100,23 @@ class DolphinLocalApi
         return $this->profileAction($profileId, 'stop', '');
     }
 
+    public function getRunningProfiles(): array
+    {
+        $r = $this->call('GET', '/v1.0/browser_profiles/running', ['timeout' => 5]);
+        if (! $r['unreachable'] && $r['status'] === 401) {
+            if ($this->token !== '') {
+                $login = $this->login();
+                if ($login['success']) {
+                    $r = $this->call('GET', '/v1.0/browser_profiles/running', ['timeout' => 5]);
+                }
+            }
+        }
+        if ($r['unreachable'] || !$this->isOk($r)) {
+            return [];
+        }
+        return is_array($r['body']) ? $r['body'] : [];
+    }
+
     private function profileAction(int $id, string $action, string $query): array
     {
         $path = "/v1.0/browser_profiles/{$id}/{$action}{$query}";

@@ -23,6 +23,8 @@ $routes->get('login', 'Auth::login');
 $routes->post('login', 'Auth::attempt');
 $routes->post('login/attempt', 'Auth::attempt'); // alias lama, dipertahankan agar form lama tetap jalan
 $routes->get('logout', 'Auth::logout');
+$routes->post('auth/verify-password', 'Auth::verifyPassword');
+$routes->post('auth/change-password', 'Auth::changePassword');
 
 // Semua rute di bawah ini wajib login
 $routes->group('', ['filter' => 'auth'], static function (RouteCollection $routes) {
@@ -49,6 +51,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('settings/get-python-logs', 'Settings::getPythonLogs');
     $routes->get('settings/get-ram-usage', 'Settings::getRamUsage');
     $routes->post('settings/send-ram-notification', 'Settings::sendRamNotification');
+    $routes->post('settings/reset-database', 'Settings::resetDatabase');
 
     // API: profil Dolphin{anty}
     $routes->get('api/profiles', 'Monitoring::getProfiles');
@@ -105,4 +108,8 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/check-python-health', 'Settings::checkPythonHealth');
     $routes->post('api/stop-python', 'Settings::stopPython');
     $routes->get('api/get-python-logs', 'Settings::getPythonLogs');
+
+    // API: logs
+    $routes->get('api/logs', 'Log::getAll');
+    $routes->delete('api/logs/clear', 'Log::clear');
 });

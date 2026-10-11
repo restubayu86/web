@@ -612,7 +612,7 @@ class Playlist extends BaseController
     {
         try {
             $response = \Config\Services::curlrequest()->get('https://www.youtube.com/oembed', [
-                'timeout' => 10,
+                'timeout' => 3,
                 'http_errors' => false,
                 'query' => [
                     'url' => 'https://www.youtube.com/watch?v=' . $videoId,
@@ -640,7 +640,7 @@ class Playlist extends BaseController
                 'title' => trim($youtubeData['title']),
                 'artist' => trim($youtubeData['author_name'] ?? 'Unknown Artist'),
                 'album' => 'YouTube Video',
-                'duration' => $this->fetchYoutubeDuration($videoId) ?? 0,
+                'duration' => $youtubeData['duration'] ?? 0,
                 'thumbnail' => $youtubeData['thumbnail_url'] ?? null,
             ];
         } catch (\Throwable $e) {
@@ -658,7 +658,7 @@ class Playlist extends BaseController
 
         try {
             $response = \Config\Services::curlrequest()->get('https://www.youtube.com/watch', [
-                'timeout' => 8,
+                'timeout' => 3,
                 'http_errors' => false,
                 'query' => ['v' => $videoId],
                 'headers' => [

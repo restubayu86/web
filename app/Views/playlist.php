@@ -172,10 +172,16 @@
                 </button>
             </div>
 
-            <!-- Loading Indicator Overlay -->
-            <div id="loadingIndicator" class="hidden mt-6 p-6 rounded-xl bg-dark-900 border border-gray-800 text-center animate-pulse">
-                <div class="inline-block w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-2"></div>
-                <p class="text-xs font-medium text-gray-300">Processing URLs and querying YouTube metadata...</p>
+            <!-- Loading Indicator with Progress Bar -->
+            <div id="loadingIndicator" class="hidden mt-6 p-6 rounded-xl bg-dark-900 border border-gray-800">
+                <div class="flex items-center justify-between mb-3">
+                    <p class="text-sm font-medium text-gray-300">Checking URLs...</p>
+                    <span id="progressPercent" class="text-sm font-semibold text-cyan-400">0%</span>
+                </div>
+                <div class="w-full h-3 bg-gray-700 rounded-full overflow-hidden">
+                    <div id="progressBar" class="h-full bg-gradient-to-r from-cyan-500 to-cyan-400 rounded-full w-0 transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="progressStatus" class="text-xs font-medium text-gray-400 mt-3">Initializing...</p>
             </div>
 
             <!-- Verification Results Display Container -->
@@ -484,7 +490,7 @@
                 });
         }
 
-        function checkAndFetchYoutubeData() {
+        async function checkAndFetchYoutubeData() {
             const playlistId = document.getElementById('playlistSelect').value;
             if (!playlistId) {
                 showAlert('Please select a target playlist destination first', 'warning');
@@ -498,41 +504,71 @@
                 return;
             }
 
-            document.getElementById('loadingIndicator').classList.remove('hidden');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressStatus = document.getElementById('progressStatus');
 
-            const formData = new FormData();
-            urls.forEach((url, index) => {
-                formData.append(`urls[${index}]`, url);
-            });
+            loadingIndicator.classList.remove('hidden');
+            progressBar.style.width = '0%';
+            progressPercent.textContent = '0%';
+            progressStatus.textContent = `Preparing to check ${urls.length} URLs...`;
 
-            fetch(`${baseUrl}api/playlist/check-urls`, {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(async res => {
-                    let data;
-                    try {
-                        data = await res.json();
-                    } catch (error) {
-                        throw new Error(`Server returned an invalid response (HTTP ${res.status})`);
-                    }
-                    if (!res.ok) {
-                        throw new Error(data.message || `URL verification failed (HTTP ${res.status})`);
-                    }
-                    return data;
-                })
-                .then(data => {
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    if (data.success) {
-                        fetchedSongs = data.results;
-                        displayResults(data);
-                    } else {
-                        showAlert(data.message || 'Verification failed', 'danger');
-                    }
-                }).catch(err => {
-                    document.getElementById('loadingIndicator').classList.add('hidden');
-                    showAlert(err.message || 'Error verifying URLs', 'danger');
+            const results = [];
+            const errors = [];
+            let validCount = 0;
+            let errorCount = 0;
+
+            // Process in batches of 5 to be efficient but still show progress
+            const batchSize = 5;
+            for (let i = 0; i < urls.length; i += batchSize) {
+                const batch = urls.slice(i, i + batchSize);
+                const formData = new FormData();
+                batch.forEach((url, index) => {
+                    formData.append(`urls[${index}]`, url);
                 });
+
+                try {
+                    const res = await fetch(`${baseUrl}api/playlist/check-urls`, {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await res.json();
+                    if (data.success) {
+                        results.push(...data.results);
+                        errors.push(...(data.errors || []));
+                        validCount += data.valid_count;
+                        errorCount += data.error_count;
+                    } else {
+                        // If batch fails, treat all as errors
+                        batch.forEach(url => {
+                            errors.push({ url, error: data.message || 'Batch failed' });
+                            errorCount++;
+                        });
+                    }
+                } catch (err) {
+                    batch.forEach(url => {
+                        errors.push({ url, error: err.message || 'Network error' });
+                        errorCount++;
+                    });
+                }
+
+                const progress = Math.min(Math.round(((i + batch.length) / urls.length) * 100), 100);
+                progressBar.style.width = `${progress}%`;
+                progressPercent.textContent = `${progress}%`;
+                progressStatus.textContent = `Checked ${Math.min(i + batch.length, urls.length)} of ${urls.length} URLs...`;
+            }
+
+            loadingIndicator.classList.add('hidden');
+            fetchedSongs = results;
+            displayResults({
+                success: true,
+                valid_count: validCount,
+                error_count: errorCount,
+                results: results,
+                errors: errors
+            });
         }
 
         function escapeHtml(value) {

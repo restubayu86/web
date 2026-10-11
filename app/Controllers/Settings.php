@@ -239,13 +239,12 @@ class Settings extends BaseController
         public function getRamUsage()
         {
             if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $cmd = 'wmic OS get FreePhysicalMemory,TotalVisibleMemorySize /Value';
-                $output = shell_exec($cmd);
+                $output = shell_exec('powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty FreePhysicalMemory; Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty TotalVisibleMemorySize"');
                 if ($output) {
-                    preg_match_all('/(\d+)/', $output, $matches);
-                    if (count($matches[0]) >= 2) {
-                        $free = (int)$matches[0][0];
-                        $total = (int)$matches[0][1];
+                    $lines = array_values(array_filter(explode("\n", trim($output))));
+                    if (count($lines) >= 2) {
+                        $free = (int)trim($lines[0]);
+                        $total = (int)trim($lines[1]);
                         $used = $total - $free;
                         $percent = round(($used / $total) * 100, 2);
                         return $this->response->setJSON(['success' => true, 'total' => $total, 'used' => $used, 'percent' => $percent]);
@@ -713,5 +712,30 @@ POWERSHELL;
             'log_file' => basename($latestLog),
             'file_size' => $fileSize,
         ]);
+    }
+
+    public function resetDatabase()
+    {
+        try {
+            $db = \Config\Database::connect();
+            $db->disableForeignKeyChecks();
+            $db->table('streams')->truncate();
+            $db->table('playlist_songs')->truncate();
+            $db->table('playlists')->truncate();
+            $db->table('proxies')->truncate();
+            $db->table('profiles')->truncate();
+            $db->table('logs')->truncate();
+            $db->enableForeignKeyChecks();
+
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => 'Database berhasil di-reset (data profil, proxy, playlist, stream, dan log dikosongkan).',
+            ]);
+        } catch (\Exception $e) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => client_error($e, 'Gagal mereset database'),
+            ])->setStatusCode(500);
+        }
     }
 }

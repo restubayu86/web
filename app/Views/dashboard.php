@@ -80,12 +80,6 @@
                 <button id="refreshBtn" onclick="loadProfiles()" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-medium text-sm shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all">
                     <i class="bi bi-arrow-clockwise"></i> REFRESH
                 </button>
-                <a href="<?= base_url('logout') ?>" class="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-dark-800 border border-gray-700 text-gray-300 text-sm font-medium hover:bg-dark-700 hover:text-rose-400 transition-all" title="Logout">
-                    <i class="bi bi-person-circle text-cyan-400"></i>
-                    <?php $username = session()->get('username'); ?>
-                    <?= esc(is_string($username) ? $username : 'Admin') ?>
-                    <i class="bi bi-box-arrow-right"></i>
-                </a>
             </div>
         </header>
 
@@ -736,38 +730,80 @@
             document.getElementById('showPlaylistTitle').textContent = playlist?.playlist_name || profile.playlistName || 'Playlist';
             document.getElementById('showPlaylistProfileName').textContent = profile.name;
             const content = document.getElementById('showPlaylistContent');
-            content.innerHTML = '<div class="flex items-center justify-center gap-2 py-8 text-sm text-gray-400"><i class="bi bi-arrow-repeat animate-spin"></i> Loading playlist...</div>';
+            content.innerHTML = '<div class="flex items-center justify-center gap-2 py-8 text-sm text-gray-400"><i class="bi bi-arrow-repeat animate-spin"></i> Loading playlist & stream data...</div>';
             document.getElementById('showPlaylistModal').classList.remove('hidden');
 
             try {
-                const response = await fetch(`${baseUrl}api/playlist/${encodeURIComponent(profile.playlistId)}`);
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok || !data.success || !data.data || !Array.isArray(data.data.songs)) {
-                    throw new Error(data.message || `Failed to load playlist (HTTP ${response.status})`);
+                const [playlistRes, streamRes] = await Promise.all([
+                    fetch(`${baseUrl}api/playlist/${encodeURIComponent(profile.playlistId)}`),
+                    fetch(`${baseUrl}api/stream/profile/${encodeURIComponent(profileId)}`)
+                ]);
+                
+                const data = await playlistRes.json().catch(() => ({}));
+                const streamData = await streamRes.json().catch(() => ({}));
+
+                if (!playlistRes.ok || !data.success || !data.data || !Array.isArray(data.data.songs)) {
+                    throw new Error(data.message || `Failed to load playlist (HTTP ${playlistRes.status})`);
                 }
                 if (requestId !== state.showPlaylistRequest) return;
 
                 const songs = data.data.songs;
+                const streams = streamRes.ok && streamData.success && Array.isArray(streamData.data) ? streamData.data : [];
+                const activeStream = streams.find(s => s.status === 'running') || streams[0] || null;
+
                 document.getElementById('showPlaylistTitle').textContent = `${data.data.playlist_name || 'Playlist'} · ${songs.length} songs`;
-                content.innerHTML = songs.length ? `
+                
+                let streamBanner = '';
+                if (activeStream) {
+                    const statusColor = activeStream.status === 'running' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-gray-700/30 border-gray-600 text-gray-300';
+                    streamBanner = `
+                        <div class="mb-5 rounded-xl border ${statusColor} p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-2 font-semibold text-sm">
+                                    <span class="inline-block w-2.5 h-2.5 rounded-full ${activeStream.status === 'running' ? 'bg-emerald-400 animate-pulse' : 'bg-gray-400'}"></span>
+                                    <span>Stream Status: <span class="uppercase">${esc(activeStream.status)}</span></span>
+                                </div>
+                                <div class="text-xs text-gray-300">
+                                    <span class="text-gray-400">Current Song:</span> <span class="font-medium text-white">${esc(activeStream.current_song || activeStream.stream_name || 'None')}</span>
+                                    ${activeStream.current_artist ? `<span class="text-gray-400">by</span> <span>${esc(activeStream.current_artist)}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-4 text-xs">
+                                <div class="rounded-lg bg-dark-900/60 px-3 py-2 border border-gray-700">
+                                    <span class="text-gray-400">Total Plays:</span> <span class="font-bold text-cyan-400">${displayMetric(activeStream.total_plays)}</span>
+                                </div>
+                                <div class="rounded-lg bg-dark-900/60 px-3 py-2 border border-gray-700">
+                                    <span class="text-gray-400">Duration:</span> <span class="font-bold text-cyan-400">${formatDuration(activeStream.stream_duration)}</span>
+                                </div>
+                            </div>
+                        </div>`;
+                }
+
+                content.innerHTML = streamBanner + (songs.length ? `
                     <div class="overflow-x-auto rounded-xl border border-gray-700">
                         <table class="w-full min-w-[560px] text-left text-sm">
                             <thead class="bg-dark-900/80 text-xs uppercase tracking-wider text-gray-400">
                                 <tr><th class="px-4 py-3">#</th><th class="px-4 py-3">Title</th><th class="px-4 py-3">Artist</th><th class="px-4 py-3">Duration</th><th class="px-4 py-3 text-right">Plays</th></tr>
                             </thead>
                             <tbody class="divide-y divide-gray-700">
-                                ${songs.map((song, index) => `
-                                    <tr class="hover:bg-dark-700/50">
+                                ${songs.map((song, index) => {
+                                    const isPlaying = activeStream && activeStream.current_song && song.song_title && activeStream.current_song.toLowerCase().includes(song.song_title.toLowerCase());
+                                    return `
+                                    <tr class="hover:bg-dark-700/50 ${isPlaying ? 'bg-cyan-500/10' : ''}">
                                         <td class="px-4 py-3 text-gray-500">${index + 1}</td>
-                                        <td class="max-w-sm truncate px-4 py-3 font-medium text-gray-200" title="${esc(song.song_title || '')}">${esc(song.song_title || 'Untitled')}</td>
+                                        <td class="max-w-sm truncate px-4 py-3 font-medium ${isPlaying ? 'text-cyan-300 font-semibold flex items-center gap-2' : 'text-gray-200'}">
+                                            ${isPlaying ? '<i class="bi bi-soundwave text-cyan-400 animate-pulse" title="Currently playing"></i>' : ''}
+                                            ${esc(song.song_title || 'Untitled')}
+                                        </td>
                                         <td class="max-w-xs truncate px-4 py-3 text-gray-400">${esc(song.artist_name || '-')}</td>
                                         <td id="songDuration-${Number(song.id)}" class="px-4 py-3 text-gray-400">${formatDuration(song.duration) || '-'}</td>
                                         <td class="px-4 py-3 text-right text-gray-400">${displayMetric(song.play_count ?? 0)}</td>
-                                    </tr>`).join('')}
+                                    </tr>`;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>` :
-                    '<div class="rounded-xl border border-dashed border-gray-700 px-4 py-10 text-center text-sm text-gray-500">This playlist has no songs.</div>';
+                    '<div class="rounded-xl border border-dashed border-gray-700 px-4 py-10 text-center text-sm text-gray-500">This playlist has no songs.</div>');
                 if (requestId === state.showPlaylistRequest) {
                     refreshPlaylistDurations(songs, requestId);
                 }

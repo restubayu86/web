@@ -25,7 +25,6 @@ class Menu extends BaseConfig
         ['key' => 'browser',  'label' => 'Browser',  'path' => 'browser',  'icon' => 'bi-browser-chrome'],
         ['key' => 'proxies',  'label' => 'Proxies',  'path' => 'proxies',  'icon' => 'bi-globe'],
         ['key' => 'playlist', 'label' => 'Playlist', 'path' => 'playlist', 'icon' => 'bi-collection-play'],
-        ['key' => 'users',    'label' => 'Users',    'path' => 'users',    'icon' => 'bi-people'],
         ['key' => 'log',      'label' => 'Log',      'path' => 'log',      'icon' => 'bi-journal-text'],
         ['key' => 'settings', 'label' => 'Settings', 'path' => 'settings', 'icon' => 'bi-gear', 'bottom' => true],
     ];

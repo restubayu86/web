@@ -130,6 +130,13 @@ class BotBridge
             return ['success' => true, 'started' => false, 'message' => 'BayzBot Python sudah berjalan.'];
         }
 
+        if (in_array($health['status'] ?? 0, [401, 403], true)) {
+            return [
+                'success' => false,
+                'message' => 'BayzBot sudah berjalan tetapi token tidak cocok dengan gui_config.json. Restart backend Python.',
+            ];
+        }
+
         $lockDirectory = rtrim(WRITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'cache';
         if (!is_dir($lockDirectory) && !@mkdir($lockDirectory, 0775, true) && !is_dir($lockDirectory)) {
             log_message('error', 'Tidak bisa membuat folder lock autostart BayzBot: ' . $lockDirectory);
@@ -149,15 +156,45 @@ class BotBridge
                 return ['success' => true, 'started' => false, 'message' => 'BayzBot Python sudah berjalan.'];
             }
 
+            if (in_array($health['status'] ?? 0, [401, 403], true)) {
+                return [
+                    'success' => false,
+                    'message' => 'BayzBot sudah berjalan tetapi token tidak cocok dengan gui_config.json. Restart backend Python.',
+                ];
+            }
+
             rewind($lock);
             $lastStart = (int) trim((string) stream_get_contents($lock));
-            if ($lastStart > 0 && time() - $lastStart < 30) {
+            if ($lastStart > 0 && time() - $lastStart < 120) {
                 return [
                     'success' => true,
                     'started' => true,
                     'message' => 'BayzBot Python sedang dinyalakan di background.',
                 ];
             }
+
+            $wsPort = filter_var(
+                $config['ws_port'] ?? 8765,
+                FILTER_VALIDATE_INT,
+                ['options' => ['min_range' => 1, 'max_range' => 65535]]
+            ) ?: 8765;
+            $probe = @fsockopen('127.0.0.1', $wsPort, $probeErrno, $probeError, 0.5);
+            if (is_resource($probe)) {
+                fclose($probe);
+                log_message('warning', 'BayzBot autostart dibatalkan: port WebSocket {port} sudah dipakai proses lain (health status={status}).', [
+                    'port' => $wsPort,
+                    'status' => $health['status'] ?? 'n/a',
+                ]);
+                return [
+                    'success' => false,
+                    'message' => 'Port WebSocket ' . $wsPort . ' dipakai proses lain (bukan BayzBot folder ini). Tutup proses itu atau ubah ws_port di gui_config.json.',
+                ];
+            }
+
+            log_message('warning', 'BayzBot autostart: health gagal (status={status}, pesan={msg}); menjalankan backend.', [
+                'status' => $health['status'] ?? 'n/a',
+                'msg' => $health['message'] ?? '',
+            ]);
 
             $launcher = $root . 'run_backend_headless.bat';
             $backend = $root . 'backend_gui.py';
@@ -182,8 +219,8 @@ class BotBridge
                 . ', ' . $quotePowerShell('call "' . $launcher . '"') . ')'
                 . ' -WorkingDirectory ' . $quotePowerShell($root)
                 . ' -WindowStyle Hidden'
-                . ' -RedirectStandardOutput ' . $quotePowerShell($logDirectory . '\\bayzbot-stdout.log')
-                . ' -RedirectStandardError ' . $quotePowerShell($logDirectory . '\\bayzbot-stderr.log');
+                . ' -RedirectStandardOutput ' . $quotePowerShell($logDirectory . '\\bayzbot-stdout-' . date('Ymd-His') . '.log')
+                . ' -RedirectStandardError ' . $quotePowerShell($logDirectory . '\\bayzbot-stderr-' . date('Ymd-His') . '.log');
             $launcherStdoutPath = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-launcher-stdout.log';
             $launcherStderrPath = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-launcher-stderr.log';
             $process = @proc_open(
