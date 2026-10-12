@@ -284,38 +284,108 @@ def notify_telegram(text: str, force: bool = False) -> None:
 
 
 def telegram_polling():
-    """Thread worker untuk polling perintah Telegram."""
-    import psutil
+    """Thread worker untuk polling perintah Telegram (long-polling getUpdates)."""
+    offset = 0
     while True:
         try:
             cfg = load_config()
-            token = cfg.get("telegram_bot_token", "")
-            chat_id = cfg.get("telegram_chat_id", "")
-            if not token or not chat_id:
+            token = (cfg.get("telegram_bot_token") or "").strip()
+            chat_id_cfg = str(cfg.get("telegram_chat_id") or "").strip()
+            if not token or not chat_id_cfg:
                 time.sleep(10)
                 continue
-            
-            # Polling getUpdates
+
             url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=30"
+            if offset:
+                url += f"&offset={offset}"
             with urllib.request.urlopen(url, timeout=40) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                if data.get("ok") and data.get("result"):
-                    for update in data["result"]:
-                        msg = update.get("message", {})
-                        text = msg.get("text", "").strip()
-                        if text.startswith("/"):
-                            cmd = text.split()[0].lower()
-                            response = "Perintah tidak dikenal. Coba /help"
-                            if cmd == "/status":
-                                response = f"BayzBot Status: OK\nRAM: {psutil.virtual_memory().percent}%"
-                            elif cmd == "/ram":
-                                response = f"RAM Usage: {psutil.virtual_memory().percent}%"
-                            elif cmd == "/help":
-                                response = "Perintah tersedia:\n/status - Status bot\n/ram - Status RAM"
-                            send_telegram_message(token, chat_id, response)
+                if not data.get("ok"):
+                    time.sleep(5)
+                    continue
+                for update in data.get("result", []):
+                    try:
+                        offset = int(update.get("update_id", 0)) + 1
+                    except Exception:
+                        offset = 0
+                    msg = update.get("message") or update.get("edited_message") or {}
+                    text = (msg.get("text") or "").strip()
+                    if not text.startswith("/"):
+                        continue
+                    sender_chat_id = str((msg.get("chat") or {}).get("id", "")).strip()
+                    if sender_chat_id != chat_id_cfg:
+                        continue
+                    cmd = text.split()[0].lower().split("@")[0]
+                    response = None
+                    if cmd == "/status":
+                        ram = get_ram_percent()
+                        ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
+                        gui_state = "Running" if state.is_running else "Stopped"
+                        web_active = sum(1 for s in state.web_sessions.values() if s.get("active"))
+                        clients = len(state.clients)
+                        response = (
+                            f"BayzBot Status: OK\n"
+                            f"RAM: {ram_str}\n"
+                            f"GUI Stream: {gui_state} (loop {state.loop_count})\n"
+                            f"Web Sessions Active: {web_active}\n"
+                            f"Instances Connected: {clients}"
+                        )
+                    elif cmd == "/ram":
+                        ram = get_ram_percent()
+                        ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
+                        response = f"RAM Usage: {ram_str}"
+                    elif cmd in ("/stopstream", "/stop"):
+                        stopped = 0
+                        if state.is_running:
+                            state.is_running = False
+                            stopped += 1
+                        for sid, sess in list(state.web_sessions.items()):
+                            if sess.get("active"):
+                                sess["active"] = False
+                                stopped += 1
+                        if stopped:
+                            response = f"Stream dihentikan ({stopped} sesi)."
+                        else:
+                            response = "Tidak ada stream aktif."
+                    elif cmd == "/ping":
+                        response = "Pong! BayzBot aktif."
+                    elif cmd == "/playlist":
+                        total = len(state.playlist_urls)
+                        idx = state.playlist_index
+                        cur = state.play_order[idx] if 0 <= idx < len(state.play_order) else "-"
+                        response = f"Playlist: {total} lagu\nIndex: {idx + 1 if idx >= 0 else 0}/{total}\nCurrent: {cur}"
+                    elif cmd == "/loops":
+                        response = f"Loop count: {state.loop_count}"
+                    elif cmd == "/clients":
+                        clients = len(state.clients)
+                        response = f"Instances connected: {clients}"
+                        if clients:
+                            for meta in state.clients.values():
+                                label = meta.get("label") or meta.get("instance_id") or "unknown"
+                                response += f"\n- {label}"
+                    elif cmd in ("/help", "/start"):
+                        response = (
+                            "Perintah tersedia:\n"
+                            "/status - Status bot & stream\n"
+                            "/ram - Status RAM\n"
+                            "/stopstream /stop - Hentikan semua stream\n"
+                            "/playlist - Info playlist\n"
+                            "/loops - Info loop count\n"
+                            "/clients - Daftar instance terhubung\n"
+                            "/ping - Cek bot aktif\n"
+                            "/help - Bantuan"
+                        )
+                    else:
+                        response = "Perintah tidak dikenal. Coba /help"
+                    if response:
+                        send_telegram_message(token, sender_chat_id, response)
         except Exception as e:
-            print(f"[Telegram Polling] Error: {e}")
-            time.sleep(10)
+            print(f"[Telegram Polling] Error: {e}", flush=True)
+            try:
+                traceback.print_exc()
+            except Exception:
+                pass
+            time.sleep(5)
 
 
 # ---------------------------------------------------------------------------
@@ -796,12 +866,13 @@ async def _stop_web_playlist(profile_id: str) -> dict:
 
 async def _control_web_playlist(profile_id: str, action: str) -> dict:
     session = state.web_sessions.get(profile_id)
-    if not session or not session.get("active"):
-        raise RuntimeError("Tidak ada playlist BayzBot aktif untuk profil ini.")
     if action == "stop":
         if not session or not session.get("active"):
             return {"success": True, "profile_id": profile_id, "action": "stop"}
         return await _stop_web_playlist(profile_id)
+
+    if not session or not session.get("active"):
+        raise RuntimeError("Tidak ada playlist BayzBot aktif untuk profil ini.")
 
     result = await _send_profile_command(profile_id, action)
     if not result.get("ok"):
@@ -863,6 +934,58 @@ async def _handle_web_playlist_completed(profile_id: str):
             "text": f"Playlist profil Dolphin {profile_id} gagal mengulang: "
                     f"{result.get('error') or 'perintah ditolak'}"
         })
+
+
+AD_EVENTS = {"adDetected", "adSkipClicked", "adUnskippable", "adEnded"}
+
+
+def _ad_seconds(ms) -> str:
+    try:
+        return f"{max(0.0, float(ms)) / 1000:.1f}"
+    except (TypeError, ValueError):
+        return "?"
+
+
+def log_ad_event(ws, msg) -> None:
+    """Tulis status skip iklan dari ekstensi ke LOG (satu baris per perubahan status)."""
+    meta = state.clients.get(ws) or {}
+    profile_id = meta.get("browser_profile_id")
+    session = state.web_sessions.get(profile_id) if profile_id else None
+    if session is not None:
+        who = f"Stream profil Dolphin {profile_id}"
+        counters = session
+    else:
+        who = f"Instance {meta.get('label') or meta.get('instance_id') or 'tidak dikenal'}"
+        counters = meta
+
+    ev = msg.get("event")
+    if ev == "adDetected":
+        counters["ads_detected"] = int(counters.get("ads_detected", 0)) + 1
+        if msg.get("skippable"):
+            try:
+                delay = int(msg.get("skipDelaySeconds") or 0)
+            except (TypeError, ValueError):
+                delay = 0
+            when = f"skip otomatis setelah {delay} detik" if delay > 0 else "skip langsung"
+            text = f"iklan terdeteksi (tombol Skip tersedia, {when})."
+        else:
+            text = "iklan terdeteksi (tombol Skip belum muncul)."
+    elif ev == "adSkipClicked":
+        text = f"tombol Skip iklan diklik ({_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
+    elif ev == "adUnskippable":
+        text = (f"iklan tidak bisa di-skip, menunggu selesai sendiri "
+                f"({_ad_seconds(msg.get('elapsedMs'))} detik berjalan).")
+    elif ev == "adEnded":
+        skipped = msg.get("skipped") is True
+        if skipped:
+            counters["ads_skipped"] = int(counters.get("ads_skipped", 0)) + 1
+        how = "di-skip bot" if skipped else "habis sendiri"
+        text = (f"iklan selesai - {how} (durasi {_ad_seconds(msg.get('durationMs'))} detik). "
+                f"Total iklan: {int(counters.get('ads_detected', 0))}, "
+                f"di-skip: {int(counters.get('ads_skipped', 0))}.")
+    else:
+        return
+    state.emit("log", {"text": f"{who}: {text}"})
 
 
 async def ws_handler(ws):
@@ -951,6 +1074,8 @@ async def ws_handler(ws):
                         })
                     elif state.clients[ws].get("instance_id") == state.selected_instance_id:
                         handle_playlist_index_change(msg.get("url"), msg.get("index", 0), msg.get("total", 1), False)
+                elif ev in AD_EVENTS:
+                    log_ad_event(ws, msg)
             elif msg_type == "commandResult":
                 future = state.pending_commands.get(msg.get("requestId"))
                 if future and not future.done():
@@ -1332,6 +1457,21 @@ async def ram_monitor_loop():
             already_alerted = False  # histeresis, hindari alert berulang di ambang batas
 
 
+def _backend_already_running(http_port: int) -> bool:
+    """True kalau ada BayzBot lain yang menjawab di HTTP API (200, atau 401/403 = token beda)."""
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{http_port}/api/health",
+        headers={"Authorization": "Bearer " + str(state.config.get("http_api_token", ""))},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status == 200
+    except urllib.error.HTTPError as e:
+        return e.code in (401, 403)
+    except Exception:
+        return False
+
+
 async def run_server():
     state.loop = asyncio.get_running_loop()
     port = get_ws_port()
@@ -1340,7 +1480,10 @@ async def run_server():
         raise RuntimeError("Port HTTP API harus berbeda dari port WebSocket.")
     
     if not is_port_available(port):
-        state.emit("log", {"text": f"[ERROR] Port {port} sudah terpakai! Gunakan --port=XXXX atau ubah di Options."})
+        if _backend_already_running(http_api_port):
+            state.emit("log", {"text": f"[INFO] BayzBot lain sudah berjalan (port {port}/{http_api_port}); instance ini berhenti tanpa error."})
+            return
+        state.emit("log", {"text": f"[ERROR] Port {port} dipakai aplikasi lain, bukan BayzBot ini. Gunakan --port=XXXX atau ubah di Options."})
         state.emit("log", {"text": f"Cth: python backend_gui.py --port=8766"})
         await asyncio.sleep(2)
         raise RuntimeError(f"Port {port} tidak tersedia")

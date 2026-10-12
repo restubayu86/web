@@ -15,7 +15,8 @@ class BotBridge
         }
 
         $parts = parse_url(trim($url));
-        if (!is_array($parts)
+        if (
+            !is_array($parts)
             || strtolower((string) ($parts['scheme'] ?? '')) !== 'http'
             || !in_array(strtolower((string) ($parts['host'] ?? '')), ['localhost', '127.0.0.1'], true)
             || isset($parts['user'])
@@ -33,9 +34,9 @@ class BotBridge
 
     public function health(string $baseUrl, string $token): array
     {
-            // Increase timeout to 5 seconds to give Python backend time to start up.
-            return $this->request($baseUrl, $token, 'GET', '/api/health', [], 5);
-        }
+        // Increase timeout to 5 seconds to give Python backend time to start up.
+        return $this->request($baseUrl, $token, 'GET', '/api/health', [], 5);
+    }
 
     public function play(string $baseUrl, string $token, array $payload): array
     {
@@ -207,20 +208,33 @@ class BotBridge
                 return ['success' => false, 'message' => 'Tidak bisa membuat folder log BayzBot.'];
             }
 
+            // Arsipkan log run sebelumnya ke subfolder (tidak ikut terbaca panel log).
+            // rename gagal diam-diam kalau file masih dipakai backend yang sedang jalan.
+            $archiveDirectory = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-archive';
+            foreach (['stdout', 'stderr'] as $logName) {
+                $currentLog = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-' . $logName . '.log';
+                if (is_file($currentLog) && filesize($currentLog) > 0) {
+                    if (!is_dir($archiveDirectory)) {
+                        @mkdir($archiveDirectory, 0775, true);
+                    }
+                    @rename($currentLog, $archiveDirectory . DIRECTORY_SEPARATOR . 'bayzbot-' . $logName . '-' . date('Ymd-His', (int) filemtime($currentLog)) . '.log');
+                }
+            }
+
             $powershell = rtrim((string) getenv('WINDIR'), '\\/')
                 . '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
             $commandInterpreter = rtrim((string) getenv('WINDIR'), '\\/') . '\\System32\\cmd.exe';
             if (!is_file($powershell) || !is_file($commandInterpreter)) {
                 return ['success' => false, 'message' => 'PowerShell atau Windows command interpreter tidak ditemukan.'];
             }
-            $quotePowerShell = static fn (string $value): string => "'" . str_replace("'", "''", $value) . "'";
+            $quotePowerShell = static fn(string $value): string => "'" . str_replace("'", "''", $value) . "'";
             $arguments = 'Start-Process -FilePath ' . $quotePowerShell($commandInterpreter)
                 . ' -ArgumentList @(' . $quotePowerShell('/d') . ', ' . $quotePowerShell('/c')
                 . ', ' . $quotePowerShell('call "' . $launcher . '"') . ')'
                 . ' -WorkingDirectory ' . $quotePowerShell($root)
                 . ' -WindowStyle Hidden'
-                . ' -RedirectStandardOutput ' . $quotePowerShell($logDirectory . '\\bayzbot-stdout-' . date('Ymd-His') . '.log')
-                . ' -RedirectStandardError ' . $quotePowerShell($logDirectory . '\\bayzbot-stderr-' . date('Ymd-His') . '.log');
+                . ' -RedirectStandardOutput ' . $quotePowerShell($logDirectory . '\\bayzbot-stdout.log')
+                . ' -RedirectStandardError ' . $quotePowerShell($logDirectory . '\\bayzbot-stderr.log');
             $launcherStdoutPath = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-launcher-stdout.log';
             $launcherStderrPath = $logDirectory . DIRECTORY_SEPARATOR . 'bayzbot-launcher-stderr.log';
             $process = @proc_open(
@@ -264,8 +278,7 @@ class BotBridge
         string $path,
         array $payload = [],
         int $timeout = 5
-    ): array
-    {
+    ): array {
         try {
             $options = [
                 'timeout' => $timeout,

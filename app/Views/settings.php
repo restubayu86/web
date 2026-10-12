@@ -46,23 +46,28 @@
             padding: 6px !important;
             color: #e5e7eb !important;
         }
+
         .select2-container--default .select2-selection--single .select2-selection__rendered {
             color: #e5e7eb !important;
             line-height: 28px !important;
         }
+
         .select2-dropdown {
             background-color: #111827 !important;
             border: 1px solid #374151 !important;
             color: #e5e7eb !important;
         }
+
         .select2-results__option {
             background-color: #111827 !important;
             color: #e5e7eb !important;
         }
+
         .select2-results__option--highlighted {
             background-color: #06b6d4 !important;
             color: white !important;
         }
+
         .select2-search__field {
             background-color: #0b0f19 !important;
             color: #e5e7eb !important;
@@ -235,7 +240,7 @@
                             <p id="python-status-message" class="text-xs text-gray-400 leading-relaxed"></p>
                         </div>
 
-                        <div class="mb-4 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
+                        <div class="mb-4 mt-2 p-4 rounded-xl bg-blue-500/5 border border-blue-500/20">
                             <p class="text-[11px] text-blue-300/80 leading-relaxed">
                                 <i class="bi bi-info-circle mr-1"></i>
                                 Gunakan <strong>Check Health</strong> untuk memastikan backend Python merespons. Jika stuck, gunakan <strong>Stop All</strong> untuk membersihkan PID yang menggantung.
@@ -529,138 +534,389 @@
                         </div>
                     </div>
 
-                                        <script>
-                                            // Default countries for Select2
-                                            const defaultCountries = [
-                                                { code: 'US', name: 'United States' },
-                                                { code: 'GB', name: 'United Kingdom' },
-                                                { code: 'DE', name: 'Germany' },
-                                                { code: 'FR', name: 'France' },
-                                                { code: 'CA', name: 'Canada' },
-                                                { code: 'AU', name: 'Australia' },
-                                                { code: 'JP', name: 'Japan' },
-                                                { code: 'SG', name: 'Singapore' },
-                                                { code: 'NL', name: 'Netherlands' },
-                                                { code: 'BR', name: 'Brazil' },
-                                                { code: 'IN', name: 'India' },
-                                                { code: 'ID', name: 'Indonesia' },
-                                                { code: 'MY', name: 'Malaysia' },
-                                                { code: 'TH', name: 'Thailand' },
-                                                { code: 'VN', name: 'Vietnam' },
-                                                { code: 'PH', name: 'Philippines' },
-                                                { code: 'KR', name: 'South Korea' },
-                                                { code: 'HK', name: 'Hong Kong' },
-                                                { code: 'TW', name: 'Taiwan' },
-                                                { code: 'MX', name: 'Mexico' },
-                                                { code: 'AR', name: 'Argentina' },
-                                                { code: 'CL', name: 'Chile' },
-                                                { code: 'CO', name: 'Colombia' },
-                                                { code: 'PE', name: 'Peru' },
-                                                { code: 'ZA', name: 'South Africa' },
-                                                { code: 'NG', name: 'Nigeria' },
-                                                { code: 'KE', name: 'Kenya' },
-                                                { code: 'EG', name: 'Egypt' },
-                                                { code: 'AE', name: 'United Arab Emirates' },
-                                                { code: 'SA', name: 'Saudi Arabia' },
-                                                { code: 'IL', name: 'Israel' },
-                                                { code: 'TR', name: 'Turkey' },
-                                                { code: 'RU', name: 'Russia' },
-                                                { code: 'PL', name: 'Poland' },
-                                                { code: 'CZ', name: 'Czech Republic' },
-                                                { code: 'AT', name: 'Austria' },
-                                                { code: 'CH', name: 'Switzerland' },
-                                                { code: 'BE', name: 'Belgium' },
-                                                { code: 'IE', name: 'Ireland' },
-                                                { code: 'NO', name: 'Norway' },
-                                                { code: 'SE', name: 'Sweden' },
-                                                { code: 'DK', name: 'Denmark' },
-                                                { code: 'FI', name: 'Finland' },
-                                                { code: 'PT', name: 'Portugal' },
-                                                { code: 'ES', name: 'Spain' },
-                                                { code: 'IT', name: 'Italy' },
-                                                { code: 'GR', name: 'Greece' },
-                                                { code: 'RO', name: 'Romania' },
-                                                { code: 'HU', name: 'Hungary' },
-                                                { code: 'SK', name: 'Slovakia' },
-                                                { code: 'SI', name: 'Slovenia' },
-                                                { code: 'HR', name: 'Croatia' },
-                                                { code: 'RS', name: 'Serbia' },
-                                                { code: 'BG', name: 'Bulgaria' },
-                                                { code: 'LT', name: 'Lithuania' },
-                                                { code: 'LV', name: 'Latvia' },
-                                                { code: 'EE', name: 'Estonia' },
-                                                { code: 'UA', name: 'Ukraine' },
-                                                { code: 'BY', name: 'Belarus' },
-                                                { code: 'KZ', name: 'Kazakhstan' },
-                                                { code: 'UZ', name: 'Uzbekistan' },
-                                                { code: 'MN', name: 'Mongolia' },
-                                                { code: 'PK', name: 'Pakistan' },
-                                                { code: 'BD', name: 'Bangladesh' },
-                                                { code: 'LK', name: 'Sri Lanka' },
-                                                { code: 'NP', name: 'Nepal' },
-                                                { code: 'MM', name: 'Myanmar' },
-                                                { code: 'KH', name: 'Cambodia' },
-                                                { code: 'LA', name: 'Laos' },
-                                                { code: 'BN', name: 'Brunei' },
-                                                { code: 'TL', name: 'Timor-Leste' },
-                                                { code: 'NZ', name: 'New Zealand' },
-                                                { code: 'FJ', name: 'Fiji' },
-                                                { code: 'PG', name: 'Papua New Guinea' },
-                                                { code: 'SB', name: 'Solomon Islands' },
-                                                { code: 'VU', name: 'Vanuatu' },
-                                                { code: 'WS', name: 'Samoa' },
-                                                { code: 'TO', name: 'Tonga' },
-                                                { code: 'TV', name: 'Tuvalu' },
-                                                { code: 'NR', name: 'Nauru' },
-                                                { code: 'PW', name: 'Palau' },
-                                                { code: 'MH', name: 'Marshall Islands' },
-                                                { code: 'FM', name: 'Micronesia' },
-                                                { code: 'KI', name: 'Kiribati' }
-                                            ];
+                    <script>
+                        // Default countries for Select2
+                        const defaultCountries = [{
+                                code: 'US',
+                                name: 'United States'
+                            },
+                            {
+                                code: 'GB',
+                                name: 'United Kingdom'
+                            },
+                            {
+                                code: 'DE',
+                                name: 'Germany'
+                            },
+                            {
+                                code: 'FR',
+                                name: 'France'
+                            },
+                            {
+                                code: 'CA',
+                                name: 'Canada'
+                            },
+                            {
+                                code: 'AU',
+                                name: 'Australia'
+                            },
+                            {
+                                code: 'JP',
+                                name: 'Japan'
+                            },
+                            {
+                                code: 'SG',
+                                name: 'Singapore'
+                            },
+                            {
+                                code: 'NL',
+                                name: 'Netherlands'
+                            },
+                            {
+                                code: 'BR',
+                                name: 'Brazil'
+                            },
+                            {
+                                code: 'IN',
+                                name: 'India'
+                            },
+                            {
+                                code: 'ID',
+                                name: 'Indonesia'
+                            },
+                            {
+                                code: 'MY',
+                                name: 'Malaysia'
+                            },
+                            {
+                                code: 'TH',
+                                name: 'Thailand'
+                            },
+                            {
+                                code: 'VN',
+                                name: 'Vietnam'
+                            },
+                            {
+                                code: 'PH',
+                                name: 'Philippines'
+                            },
+                            {
+                                code: 'KR',
+                                name: 'South Korea'
+                            },
+                            {
+                                code: 'HK',
+                                name: 'Hong Kong'
+                            },
+                            {
+                                code: 'TW',
+                                name: 'Taiwan'
+                            },
+                            {
+                                code: 'MX',
+                                name: 'Mexico'
+                            },
+                            {
+                                code: 'AR',
+                                name: 'Argentina'
+                            },
+                            {
+                                code: 'CL',
+                                name: 'Chile'
+                            },
+                            {
+                                code: 'CO',
+                                name: 'Colombia'
+                            },
+                            {
+                                code: 'PE',
+                                name: 'Peru'
+                            },
+                            {
+                                code: 'ZA',
+                                name: 'South Africa'
+                            },
+                            {
+                                code: 'NG',
+                                name: 'Nigeria'
+                            },
+                            {
+                                code: 'KE',
+                                name: 'Kenya'
+                            },
+                            {
+                                code: 'EG',
+                                name: 'Egypt'
+                            },
+                            {
+                                code: 'AE',
+                                name: 'United Arab Emirates'
+                            },
+                            {
+                                code: 'SA',
+                                name: 'Saudi Arabia'
+                            },
+                            {
+                                code: 'IL',
+                                name: 'Israel'
+                            },
+                            {
+                                code: 'TR',
+                                name: 'Turkey'
+                            },
+                            {
+                                code: 'RU',
+                                name: 'Russia'
+                            },
+                            {
+                                code: 'PL',
+                                name: 'Poland'
+                            },
+                            {
+                                code: 'CZ',
+                                name: 'Czech Republic'
+                            },
+                            {
+                                code: 'AT',
+                                name: 'Austria'
+                            },
+                            {
+                                code: 'CH',
+                                name: 'Switzerland'
+                            },
+                            {
+                                code: 'BE',
+                                name: 'Belgium'
+                            },
+                            {
+                                code: 'IE',
+                                name: 'Ireland'
+                            },
+                            {
+                                code: 'NO',
+                                name: 'Norway'
+                            },
+                            {
+                                code: 'SE',
+                                name: 'Sweden'
+                            },
+                            {
+                                code: 'DK',
+                                name: 'Denmark'
+                            },
+                            {
+                                code: 'FI',
+                                name: 'Finland'
+                            },
+                            {
+                                code: 'PT',
+                                name: 'Portugal'
+                            },
+                            {
+                                code: 'ES',
+                                name: 'Spain'
+                            },
+                            {
+                                code: 'IT',
+                                name: 'Italy'
+                            },
+                            {
+                                code: 'GR',
+                                name: 'Greece'
+                            },
+                            {
+                                code: 'RO',
+                                name: 'Romania'
+                            },
+                            {
+                                code: 'HU',
+                                name: 'Hungary'
+                            },
+                            {
+                                code: 'SK',
+                                name: 'Slovakia'
+                            },
+                            {
+                                code: 'SI',
+                                name: 'Slovenia'
+                            },
+                            {
+                                code: 'HR',
+                                name: 'Croatia'
+                            },
+                            {
+                                code: 'RS',
+                                name: 'Serbia'
+                            },
+                            {
+                                code: 'BG',
+                                name: 'Bulgaria'
+                            },
+                            {
+                                code: 'LT',
+                                name: 'Lithuania'
+                            },
+                            {
+                                code: 'LV',
+                                name: 'Latvia'
+                            },
+                            {
+                                code: 'EE',
+                                name: 'Estonia'
+                            },
+                            {
+                                code: 'UA',
+                                name: 'Ukraine'
+                            },
+                            {
+                                code: 'BY',
+                                name: 'Belarus'
+                            },
+                            {
+                                code: 'KZ',
+                                name: 'Kazakhstan'
+                            },
+                            {
+                                code: 'UZ',
+                                name: 'Uzbekistan'
+                            },
+                            {
+                                code: 'MN',
+                                name: 'Mongolia'
+                            },
+                            {
+                                code: 'PK',
+                                name: 'Pakistan'
+                            },
+                            {
+                                code: 'BD',
+                                name: 'Bangladesh'
+                            },
+                            {
+                                code: 'LK',
+                                name: 'Sri Lanka'
+                            },
+                            {
+                                code: 'NP',
+                                name: 'Nepal'
+                            },
+                            {
+                                code: 'MM',
+                                name: 'Myanmar'
+                            },
+                            {
+                                code: 'KH',
+                                name: 'Cambodia'
+                            },
+                            {
+                                code: 'LA',
+                                name: 'Laos'
+                            },
+                            {
+                                code: 'BN',
+                                name: 'Brunei'
+                            },
+                            {
+                                code: 'TL',
+                                name: 'Timor-Leste'
+                            },
+                            {
+                                code: 'NZ',
+                                name: 'New Zealand'
+                            },
+                            {
+                                code: 'FJ',
+                                name: 'Fiji'
+                            },
+                            {
+                                code: 'PG',
+                                name: 'Papua New Guinea'
+                            },
+                            {
+                                code: 'SB',
+                                name: 'Solomon Islands'
+                            },
+                            {
+                                code: 'VU',
+                                name: 'Vanuatu'
+                            },
+                            {
+                                code: 'WS',
+                                name: 'Samoa'
+                            },
+                            {
+                                code: 'TO',
+                                name: 'Tonga'
+                            },
+                            {
+                                code: 'TV',
+                                name: 'Tuvalu'
+                            },
+                            {
+                                code: 'NR',
+                                name: 'Nauru'
+                            },
+                            {
+                                code: 'PW',
+                                name: 'Palau'
+                            },
+                            {
+                                code: 'MH',
+                                name: 'Marshall Islands'
+                            },
+                            {
+                                code: 'FM',
+                                name: 'Micronesia'
+                            },
+                            {
+                                code: 'KI',
+                                name: 'Kiribati'
+                            }
+                        ];
 
-                                            function createCountryOptions(selectedCode = '') {
-                                                let options = '<option value="">Select Country</option>';
-                                                defaultCountries.forEach(c => {
-                                                    const sel = c.code === selectedCode ? 'selected' : '';
-                                                    options += `<option value="${c.code}" ${sel}>${c.code} - ${c.name}</option>`;
-                                                });
-                                                return options;
-                                            }
+                        function createCountryOptions(selectedCode = '') {
+                            let options = '<option value="">Select Country</option>';
+                            defaultCountries.forEach(c => {
+                                const sel = c.code === selectedCode ? 'selected' : '';
+                                options += `<option value="${c.code}" ${sel}>${c.code} - ${c.name}</option>`;
+                            });
+                            return options;
+                        }
 
-                                            function addRevenueRow(country = '', rate = '') {
-                                                const container = document.getElementById('revenue-rows');
-                                                const div = document.createElement('div');
-                                                div.className = 'grid grid-cols-3 gap-3 revenue-row';
-                                                div.innerHTML = `
+                        function addRevenueRow(country = '', rate = '') {
+                            const container = document.getElementById('revenue-rows');
+                            const div = document.createElement('div');
+                            div.className = 'grid grid-cols-3 gap-3 revenue-row';
+                            div.innerHTML = `
                                                     <select name="rev_country[]" class="country-select bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" style="width: 100%;">${createCountryOptions(country)}</select>
                                                     <input type="number" name="rev_rate[]" placeholder="Rate" value="${rate}" class="bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200" step="0.01" min="0">
                                                     <button type="button" onclick="this.closest('.revenue-row').remove()" class="text-red-400 hover:text-red-300 text-xs self-center"><i class="bi bi-trash"></i></button>
                                                 `;
-                                                container.appendChild(div);
-                            
-                                                // Initialize Select2 on the new select
-                                                $(div).find('.country-select').select2({
-                                                    dropdownParent: $(div),
-                                                    width: '100%',
-                                                    placeholder: 'Select Country',
-                                                    allowClear: true
-                                                });
-                                            }
+                            container.appendChild(div);
 
-                                            // Initialize existing rows on page load
-                                            document.addEventListener('DOMContentLoaded', function() {
-                                                // Load existing revenue rates from PHP variable
-                                                const revenueRates = <?= json_encode($revenue_rates ?? []) ?>;
-                                                if (revenueRates && revenueRates.length > 0) {
-                                                    revenueRates.forEach(r => {
-                                                        addRevenueRow(r.country, r.rate);
-                                                    });
-                                                } else {
-                                                    // Add one empty row by default
-                                                    addRevenueRow();
-                                                }
-                                            });
-                                        </script>
+                            // Initialize Select2 on the new select
+                            $(div).find('.country-select').select2({
+                                dropdownParent: $(div),
+                                width: '100%',
+                                placeholder: 'Select Country',
+                                allowClear: true
+                            });
+                        }
+
+                        // Initialize existing rows on page load
+                        document.addEventListener('DOMContentLoaded', function() {
+                            // Load existing revenue rates from PHP variable
+                            const revenueRates = <?= json_encode($revenue_rates ?? []) ?>;
+                            if (revenueRates && revenueRates.length > 0) {
+                                revenueRates.forEach(r => {
+                                    addRevenueRow(r.country, r.rate);
+                                });
+                            } else {
+                                // Add one empty row by default
+                                addRevenueRow();
+                            }
+                        });
+                    </script>
                 </div>
             </div>
 
@@ -1144,7 +1400,7 @@
                     statusMessage.textContent = "Error: " + error.message;
                 }
                 btn.disabled = false;
-                btn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop All BayzBot Processes';
+                btn.innerHTML = '<i class="bi bi-stop-circle"></i> Stop Semua';
             });
 
             let pythonLogsLoading = false;
@@ -1246,15 +1502,33 @@
                     btn.disabled = true;
                     btn.innerHTML = '<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> Resetting...';
                     fetch(baseUrl + "settings/reset-database", {
-                        method: "POST",
-                        headers: { "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content }
-                    })
-                    .then(r => r.json())
-                    .then(data => {
-                        Swal.fire({ icon: data.success ? 'success' : 'error', title: data.success ? 'Berhasil' : 'Gagal', text: data.message, background: '#111827', color: '#fff', confirmButtonColor: data.success ? '#06b6d4' : '#ef4444' });
-                    })
-                    .catch(e => Swal.fire({ icon: 'error', title: 'Error', text: e.message, background: '#111827', color: '#fff' }))
-                    .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-trash3"></i> Reset Database'; });
+                            method: "POST",
+                            headers: {
+                                "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
+                            }
+                        })
+                        .then(r => r.json())
+                        .then(data => {
+                            Swal.fire({
+                                icon: data.success ? 'success' : 'error',
+                                title: data.success ? 'Berhasil' : 'Gagal',
+                                text: data.message,
+                                background: '#111827',
+                                color: '#fff',
+                                confirmButtonColor: data.success ? '#06b6d4' : '#ef4444'
+                            });
+                        })
+                        .catch(e => Swal.fire({
+                            icon: 'error',
+                            title: 'Error',
+                            text: e.message,
+                            background: '#111827',
+                            color: '#fff'
+                        }))
+                        .finally(() => {
+                            btn.disabled = false;
+                            btn.innerHTML = '<i class="bi bi-trash3"></i> Reset Database';
+                        });
                 });
             });
 
@@ -1264,36 +1538,85 @@
                 const newPw = document.getElementById("new_password").value;
                 const confirmPw = document.getElementById("confirm_password").value;
                 if (!oldPw || !newPw || !confirmPw) {
-                    Swal.fire({ icon: 'warning', title: 'Lengkapi Form', text: 'Semua field password wajib diisi.', background: '#111827', color: '#fff', confirmButtonColor: '#06b6d4' });
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Lengkapi Form',
+                        text: 'Semua field password wajib diisi.',
+                        background: '#111827',
+                        color: '#fff',
+                        confirmButtonColor: '#06b6d4'
+                    });
                     return;
                 }
                 if (newPw !== confirmPw) {
-                    Swal.fire({ icon: 'error', title: 'Tidak Cocok', text: 'Konfirmasi password tidak cocok.', background: '#111827', color: '#fff', confirmButtonColor: '#ef4444' });
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Tidak Cocok',
+                        text: 'Konfirmasi password tidak cocok.',
+                        background: '#111827',
+                        color: '#fff',
+                        confirmButtonColor: '#ef4444'
+                    });
                     return;
                 }
                 if (newPw.length < 6) {
-                    Swal.fire({ icon: 'warning', title: 'Terlalu Pendek', text: 'Password baru minimal 6 karakter.', background: '#111827', color: '#fff', confirmButtonColor: '#06b6d4' });
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Terlalu Pendek',
+                        text: 'Password baru minimal 6 karakter.',
+                        background: '#111827',
+                        color: '#fff',
+                        confirmButtonColor: '#06b6d4'
+                    });
                     return;
                 }
                 const btn = this;
                 btn.disabled = true;
                 btn.innerHTML = '<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"></span> Processing...';
                 fetch(baseUrl + "auth/change-password", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content },
-                    body: JSON.stringify({ old_password: oldPw, new_password: newPw })
-                })
-                .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
-                .then(({ ok, data }) => {
-                    Swal.fire({ icon: ok && data.success ? 'success' : 'error', title: ok && data.success ? 'Berhasil' : 'Gagal', text: data.message, background: '#111827', color: '#fff', confirmButtonColor: ok && data.success ? '#06b6d4' : '#ef4444' });
-                    if (ok && data.success) {
-                        document.getElementById("old_password").value = '';
-                        document.getElementById("new_password").value = '';
-                        document.getElementById("confirm_password").value = '';
-                    }
-                })
-                .catch(e => Swal.fire({ icon: 'error', title: 'Error', text: e.message, background: '#111827', color: '#fff' }))
-                .finally(() => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-shield-lock"></i> Change Password'; });
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]').content
+                        },
+                        body: JSON.stringify({
+                            old_password: oldPw,
+                            new_password: newPw
+                        })
+                    })
+                    .then(r => r.json().then(d => ({
+                        ok: r.ok,
+                        data: d
+                    })))
+                    .then(({
+                        ok,
+                        data
+                    }) => {
+                        Swal.fire({
+                            icon: ok && data.success ? 'success' : 'error',
+                            title: ok && data.success ? 'Berhasil' : 'Gagal',
+                            text: data.message,
+                            background: '#111827',
+                            color: '#fff',
+                            confirmButtonColor: ok && data.success ? '#06b6d4' : '#ef4444'
+                        });
+                        if (ok && data.success) {
+                            document.getElementById("old_password").value = '';
+                            document.getElementById("new_password").value = '';
+                            document.getElementById("confirm_password").value = '';
+                        }
+                    })
+                    .catch(e => Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: e.message,
+                        background: '#111827',
+                        color: '#fff'
+                    }))
+                    .finally(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="bi bi-shield-lock"></i> Change Password';
+                    });
             });
 
             // Load logs on page load

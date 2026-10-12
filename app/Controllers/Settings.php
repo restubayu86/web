@@ -34,8 +34,8 @@ class Settings extends BaseController
             'bot_bridge_token' => $this->settingsModel->getSetting('bot_bridge_token') ?? '',
             'revenue_rates' => json_decode($this->settingsModel->getSetting('revenue_rates') ?? '[]', true) ?: [],
         ];
-                            return view('settings', $data);
-                        }
+        return view('settings', $data);
+    }
 
     public function getRevenueRates()
     {
@@ -51,64 +51,64 @@ class Settings extends BaseController
         $telegramBotToken = $this->request->getPost('telegram_bot_token');
         $telegramChatId = $this->request->getPost('telegram_chat_id');
         $telegramNotificationsEnabled = $this->request->getPost('telegram_notifications_enabled') ? '1' : '0';
-            $telegramRamNotificationsEnabled = $this->request->getPost('telegram_ram_notifications_enabled') ? '1' : '0';
-            $ramThresholdPercent = $this->request->getPost('ram_threshold_percent') ?? '85';
-                    $ramStopStreamsEnabled = $this->request->getPost('ram_stop_streams_enabled') ? '1' : '0';
-                    $totalLoop = $this->request->getPost('total_loop') ?? '-1';
-                    $shufflePlaylist = $this->request->getPost('shuffle_playlist') ? '1' : '0';
-                    $watchdogInterval = $this->request->getPost('watchdog_interval') ?? '30';
-                    $adSkipDelaySeconds = $this->request->getPost('ad_skip_delay_seconds') ?? '0';
-                    $botBridgeUrl = BotBridge::normalizeUrl($this->request->getPost('bot_bridge_url'));
-            $botBridgeToken = trim((string) $this->request->getPost('bot_bridge_token'));
+        $telegramRamNotificationsEnabled = $this->request->getPost('telegram_ram_notifications_enabled') ? '1' : '0';
+        $ramThresholdPercent = $this->request->getPost('ram_threshold_percent') ?? '85';
+        $ramStopStreamsEnabled = $this->request->getPost('ram_stop_streams_enabled') ? '1' : '0';
+        $totalLoop = $this->request->getPost('total_loop') ?? '-1';
+        $shufflePlaylist = $this->request->getPost('shuffle_playlist') ? '1' : '0';
+        $watchdogInterval = $this->request->getPost('watchdog_interval') ?? '30';
+        $adSkipDelaySeconds = $this->request->getPost('ad_skip_delay_seconds') ?? '0';
+        $botBridgeUrl = BotBridge::normalizeUrl($this->request->getPost('bot_bridge_url'));
+        $botBridgeToken = trim((string) $this->request->getPost('bot_bridge_token'));
 
-            // URL Local API: hanya loopback; jika tidak valid, nilai lama dipertahankan.
-            $localUrl = DolphinLocalApi::normalizeUrl($this->request->getPost('local_api_url'));
-            if ($localUrl === null) {
-                $localUrlError = 'URL Local API tidak valid (harus localhost / 127.0.0.1), nilai lama dipertahankan.';
-            } else {
-                $this->settingsModel->setSetting('dolphin_local_url', $localUrl);
-            }
-
-            $this->settingsModel->setSetting('dolphin_api_token', $apiToken);
-            $this->settingsModel->setSetting('telegram_bot_token', $telegramBotToken);
-            $this->settingsModel->setSetting('telegram_chat_id', $telegramChatId);
-            $this->settingsModel->setSetting('telegram_notifications_enabled', $telegramNotificationsEnabled);
-            $this->settingsModel->setSetting('telegram_ram_notifications_enabled', $telegramRamNotificationsEnabled);
-            $this->settingsModel->setSetting('ram_threshold_percent', $ramThresholdPercent);
-                        $this->settingsModel->setSetting('ram_stop_streams_enabled', $ramStopStreamsEnabled);
-                        $this->settingsModel->setSetting('total_loop', $totalLoop);
-                        $this->settingsModel->setSetting('shuffle_playlist', $shufflePlaylist);
-                        $this->settingsModel->setSetting('watchdog_interval', $watchdogInterval);
-                        $this->settingsModel->setSetting('ad_skip_delay_seconds', $adSkipDelaySeconds);
-            if ($botBridgeUrl === null) {
-                $botBridgeUrlError = 'URL BayzBot tidak valid (harus localhost / 127.0.0.1), nilai lama dipertahankan.';
-            } else {
-                $this->settingsModel->setSetting('bot_bridge_url', $botBridgeUrl);
-            }
-            $this->settingsModel->setSetting('bot_bridge_token', $botBridgeToken);
-
-            // Save Revenue Rates
-            $countries = $this->request->getPost('rev_country') ?? [];
-            $rates = $this->request->getPost('rev_rate') ?? [];
-            $revenueRates = [];
-            foreach ($countries as $index => $country) {
-                if (!empty($country) && isset($rates[$index])) {
-                    $revenueRates[] = [
-                        'country' => strtoupper(trim($country)),
-                        'rate' => (float)$rates[$index]
-                    ];
-                }
-            }
-            $this->settingsModel->setSetting('revenue_rates', json_encode($revenueRates));
-
-            $redirect = redirect()->back()->with('message', 'Settings saved successfully!');
-            $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null]);
-            if ($errors !== []) {
-                $redirect->with('error', implode(' ', $errors));
-            }
-
-            return $redirect;
+        // URL Local API: hanya loopback; jika tidak valid, nilai lama dipertahankan.
+        $localUrl = DolphinLocalApi::normalizeUrl($this->request->getPost('local_api_url'));
+        if ($localUrl === null) {
+            $localUrlError = 'URL Local API tidak valid (harus localhost / 127.0.0.1), nilai lama dipertahankan.';
+        } else {
+            $this->settingsModel->setSetting('dolphin_local_url', $localUrl);
         }
+
+        $this->settingsModel->setSetting('dolphin_api_token', $apiToken);
+        $this->settingsModel->setSetting('telegram_bot_token', $telegramBotToken);
+        $this->settingsModel->setSetting('telegram_chat_id', $telegramChatId);
+        $this->settingsModel->setSetting('telegram_notifications_enabled', $telegramNotificationsEnabled);
+        $this->settingsModel->setSetting('telegram_ram_notifications_enabled', $telegramRamNotificationsEnabled);
+        $this->settingsModel->setSetting('ram_threshold_percent', $ramThresholdPercent);
+        $this->settingsModel->setSetting('ram_stop_streams_enabled', $ramStopStreamsEnabled);
+        $this->settingsModel->setSetting('total_loop', $totalLoop);
+        $this->settingsModel->setSetting('shuffle_playlist', $shufflePlaylist);
+        $this->settingsModel->setSetting('watchdog_interval', $watchdogInterval);
+        $this->settingsModel->setSetting('ad_skip_delay_seconds', $adSkipDelaySeconds);
+        if ($botBridgeUrl === null) {
+            $botBridgeUrlError = 'URL BayzBot tidak valid (harus localhost / 127.0.0.1), nilai lama dipertahankan.';
+        } else {
+            $this->settingsModel->setSetting('bot_bridge_url', $botBridgeUrl);
+        }
+        $this->settingsModel->setSetting('bot_bridge_token', $botBridgeToken);
+
+        // Save Revenue Rates
+        $countries = $this->request->getPost('rev_country') ?? [];
+        $rates = $this->request->getPost('rev_rate') ?? [];
+        $revenueRates = [];
+        foreach ($countries as $index => $country) {
+            if (!empty($country) && isset($rates[$index])) {
+                $revenueRates[] = [
+                    'country' => strtoupper(trim($country)),
+                    'rate' => (float)$rates[$index]
+                ];
+            }
+        }
+        $this->settingsModel->setSetting('revenue_rates', json_encode($revenueRates));
+
+        $redirect = redirect()->back()->with('message', 'Settings saved successfully!');
+        $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null]);
+        if ($errors !== []) {
+            $redirect->with('error', implode(' ', $errors));
+        }
+
+        return $redirect;
+    }
 
     public function checkBotBridge()
     {
@@ -191,14 +191,14 @@ class Settings extends BaseController
 
         if (empty($botToken) || empty($chatId)) {
             return $this->response->setJSON([
-                'success' => false, 
+                'success' => false,
                 'message' => 'Bot token dan Chat ID harus diisi'
             ])->setStatusCode(400);
         }
 
         try {
             $client = \Config\Services::curlrequest();
-            
+
             $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
             $payload = [
                 'chat_id' => $chatId,
@@ -216,194 +216,196 @@ class Settings extends BaseController
 
             if ($statusCode === 200 && isset($body['ok']) && $body['ok'] === true) {
                 return $this->response->setJSON([
-                    'success' => true, 
+                    'success' => true,
                     'message' => 'Test pesan Telegram berhasil dikirim!'
                 ]);
             }
 
             $errorMsg = $body['description'] ?? $body['error_description'] ?? 'Gagal mengirim pesan ke Telegram';
             return $this->response->setJSON([
-                'success' => false, 
+                'success' => false,
                 'message' => $errorMsg
             ])->setStatusCode(400);
-            
         } catch (\Exception $e) {
             log_message('error', 'Telegram test error: ' . $e->getMessage());
             return $this->response->setJSON([
-                'success' => false, 
+                'success' => false,
                 'message' => client_error($e, 'Error')
             ])->setStatusCode(500);
         }
     }
 
-        public function getRamUsage()
-        {
-            if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                $output = shell_exec('powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty FreePhysicalMemory; Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty TotalVisibleMemorySize"');
-                if ($output) {
-                    $lines = array_values(array_filter(explode("\n", trim($output))));
-                    if (count($lines) >= 2) {
-                        $free = (int)trim($lines[0]);
-                        $total = (int)trim($lines[1]);
-                        $used = $total - $free;
-                        $percent = round(($used / $total) * 100, 2);
-                        return $this->response->setJSON(['success' => true, 'total' => $total, 'used' => $used, 'percent' => $percent]);
-                    }
+    public function getRamUsage()
+    {
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            $output = shell_exec('powershell -Command "Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty FreePhysicalMemory; Get-CimInstance Win32_OperatingSystem | Select-Object -ExpandProperty TotalVisibleMemorySize"');
+            if ($output) {
+                $lines = array_values(array_filter(explode("\n", trim($output))));
+                if (count($lines) >= 2) {
+                    $free = (int)trim($lines[0]);
+                    $total = (int)trim($lines[1]);
+                    $used = $total - $free;
+                    $percent = round(($used / $total) * 100, 2);
+                    return $this->response->setJSON(['success' => true, 'total' => $total, 'used' => $used, 'percent' => $percent]);
                 }
-            } else {
-                $free = shell_exec('free');
-                $free = (string)trim($free);
-                $free_arr = explode("\n", $free);
-                $mem = explode(" ", $free_arr[1]);
-                $mem = array_filter($mem);
-                $mem = array_merge($mem);
-                $total = $mem[1];
-                $used = $mem[2];
-                $percent = round(($used / $total) * 100, 2);
-                return $this->response->setJSON(['success' => true, 'total' => $total, 'used' => $used, 'percent' => $percent]);
             }
-            return $this->response->setJSON(['success' => false, 'message' => 'Could not get RAM usage']);
+        } else {
+            $free = shell_exec('free');
+            $free = (string)trim($free);
+            $free_arr = explode("\n", $free);
+            $mem = explode(" ", $free_arr[1]);
+            $mem = array_filter($mem);
+            $mem = array_merge($mem);
+            $total = $mem[1];
+            $used = $mem[2];
+            $percent = round(($used / $total) * 100, 2);
+            return $this->response->setJSON(['success' => true, 'total' => $total, 'used' => $used, 'percent' => $percent]);
+        }
+        return $this->response->setJSON(['success' => false, 'message' => 'Could not get RAM usage']);
+    }
+
+    public function sendRamNotification()
+    {
+        $percent = (float) $this->request->getPost('ram_percent');
+        $threshold = (float) $this->request->getPost('ram_threshold');
+
+        // Get telegram settings from database
+        $botToken = $this->settingsModel->getSetting('telegram_bot_token');
+        $chatId = $this->settingsModel->getSetting('telegram_chat_id');
+        $ramNotificationsEnabled = $this->settingsModel->getSetting('telegram_ram_notifications_enabled') ?? '0';
+
+        if ($ramNotificationsEnabled !== '1') {
+            return $this->response->setJSON(['success' => false, 'message' => 'RAM notifications are disabled'])->setStatusCode(400);
         }
 
-        public function sendRamNotification()
-        {
-                    $percent = (float) $this->request->getPost('ram_percent');
-                    $threshold = (float) $this->request->getPost('ram_threshold');
-            
-                    // Get telegram settings from database
-                    $botToken = $this->settingsModel->getSetting('telegram_bot_token');
-                    $chatId = $this->settingsModel->getSetting('telegram_chat_id');
-                    $ramNotificationsEnabled = $this->settingsModel->getSetting('telegram_ram_notifications_enabled') ?? '0';
+        if (empty($botToken) || empty($chatId)) {
+            return $this->response->setJSON(['success' => false, 'message' => 'Bot token dan Chat ID harus dikonfigurasi di Settings'])->setStatusCode(400);
+        }
 
-                    if ($ramNotificationsEnabled !== '1') {
-                        return $this->response->setJSON(['success' => false, 'message' => 'RAM notifications are disabled'])->setStatusCode(400);
-                    }
+        try {
+            $client = \Config\Services::curlrequest();
 
-                    if (empty($botToken) || empty($chatId)) {
-                        return $this->response->setJSON(['success' => false, 'message' => 'Bot token dan Chat ID harus dikonfigurasi di Settings'])->setStatusCode(400);
-                    }
+            $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
+            $message = '⚠️ *Peringatan RAM Tinggi*: Penggunaan RAM telah mencapai *' . number_format($percent, 2) . '*% (threshold: *' . $threshold . '*%)' . "\n\n" .
+                'Perintah tersedia:' . "\n" .
+                '/status - Status bot' . "\n" .
+                '/ram - Status RAM' . "\n" .
+                '/stopstream - Hentikan stream' . "\n" .
+                '/help - Bantuan';
+            $payload = [
+                'chat_id' => $chatId,
+                'text' => $message,
+                'parse_mode' => 'Markdown'
+            ];
 
-                    try {
-                        $client = \Config\Services::curlrequest();
-            
-                        $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
-                        $message = '⚠️ *Peringatan RAM Tinggi*: Penggunaan RAM telah mencapai *' . number_format($percent, 2) . '*% (threshold: *' . $threshold . '*%)';
-                        $payload = [
-                            'chat_id' => $chatId,
-                            'text' => $message,
-                            'parse_mode' => 'Markdown'
-                        ];
+            $response = $client->post($url, [
+                'timeout' => 10,
+                'json' => $payload
+            ]);
 
-                        $response = $client->post($url, [
+            $statusCode = $response->getStatusCode();
+            $body = json_decode($response->getBody(), true);
+
+            if ($statusCode === 200 && isset($body['ok']) && $body['ok'] === true) {
+                return $this->response->setJSON(['success' => true, 'message' => 'Notifikasi Telegram berhasil dikirim!']);
+            }
+
+            $errorMsg = $body['description'] ?? $body['error_description'] ?? 'Gagal mengirim notifikasi';
+            return $this->response->setJSON(['success' => false, 'message' => $errorMsg])->setStatusCode(400);
+        } catch (\Exception $e) {
+            log_message('error', 'RAM notification error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => client_error($e, 'Error')])->setStatusCode(500);
+        }
+    }
+
+    public function checkRamAndStopStreams()
+    {
+        $percent = (float) $this->request->getPost('ram_percent');
+        $threshold = (float) $this->request->getPost('ram_threshold');
+
+        // Get settings from database
+        $ramStopStreamsEnabled = $this->settingsModel->getSetting('ram_stop_streams_enabled') ?? '0';
+        $ramNotificationsEnabled = $this->settingsModel->getSetting('telegram_ram_notifications_enabled') ?? '0';
+        $botToken = $this->settingsModel->getSetting('telegram_bot_token');
+        $chatId = $this->settingsModel->getSetting('telegram_chat_id');
+
+        if ($ramStopStreamsEnabled !== '1') {
+            return $this->response->setJSON(['success' => false, 'message' => 'Auto-stop streams is disabled'])->setStatusCode(400);
+        }
+
+        if ($percent <= $threshold) {
+            return $this->response->setJSON(['success' => false, 'message' => 'RAM usage is below threshold'])->setStatusCode(400);
+        }
+
+        try {
+            // Get all active streams
+            $streamModel = new \App\Models\StreamModel();
+            $activeStreams = $streamModel->whereIn('status', ['starting', 'running', 'paused'])->findAll();
+
+            $stoppedCount = 0;
+            $errors = [];
+
+            foreach ($activeStreams as $stream) {
+                try {
+                    // Call the stop API for each stream
+                    $client = \Config\Services::curlrequest();
+                    $baseUrl = $this->settingsModel->getSetting('bot_bridge_url') ?: 'http://127.0.0.1:8766';
+                    $token = trim((string) $this->settingsModel->getSetting('bot_bridge_token'));
+
+                    if ($baseUrl && $token) {
+                        $response = $client->post($baseUrl . '/api/stream/stop/' . $stream['id'], [
                             'timeout' => 10,
-                            'json' => $payload
+                            'headers' => [
+                                'Authorization' => 'Bearer ' . $token,
+                                'Accept' => 'application/json',
+                            ]
                         ]);
 
-                        $statusCode = $response->getStatusCode();
-                        $body = json_decode($response->getBody(), true);
-
-                        if ($statusCode === 200 && isset($body['ok']) && $body['ok'] === true) {
-                            return $this->response->setJSON(['success' => true, 'message' => 'Notifikasi Telegram berhasil dikirim!']);
+                        if ($response->getStatusCode() === 200) {
+                            $stoppedCount++;
+                        } else {
+                            $errors[] = "Stream #{$stream['id']}: " . $response->getBody();
                         }
-
-                        $errorMsg = $body['description'] ?? $body['error_description'] ?? 'Gagal mengirim notifikasi';
-                        return $this->response->setJSON(['success' => false, 'message' => $errorMsg])->setStatusCode(400);
-            
-                    } catch (\Exception $e) {
-                        log_message('error', 'RAM notification error: ' . $e->getMessage());
-                        return $this->response->setJSON(['success' => false, 'message' => client_error($e, 'Error')])->setStatusCode(500);
+                    } else {
+                        $errors[] = "Stream #{$stream['id']}: Bot bridge not configured";
                     }
+                } catch (\Exception $e) {
+                    $errors[] = "Stream #{$stream['id']}: " . $e->getMessage();
                 }
+            }
 
-                            public function checkRamAndStopStreams()
-                            {
-                                $percent = (float) $this->request->getPost('ram_percent');
-                                $threshold = (float) $this->request->getPost('ram_threshold');
-            
-                                // Get settings from database
-                                $ramStopStreamsEnabled = $this->settingsModel->getSetting('ram_stop_streams_enabled') ?? '0';
-                                $ramNotificationsEnabled = $this->settingsModel->getSetting('telegram_ram_notifications_enabled') ?? '0';
-                                $botToken = $this->settingsModel->getSetting('telegram_bot_token');
-                                $chatId = $this->settingsModel->getSetting('telegram_chat_id');
+            // Send Telegram notification if enabled
+            $telegramSent = false;
+            if ($ramNotificationsEnabled === '1' && !empty($botToken) && !empty($chatId)) {
+                try {
+                    $client = \Config\Services::curlrequest();
+                    $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
+                    $message = '🛑 *Auto-Stop Triggered*: RAM usage reached *' . number_format($percent, 2) . '*% (threshold: *' . $threshold . '*%)\n\nStopped ' . $stoppedCount . ' active stream(s) to prevent system instability.';
+                    $payload = [
+                        'chat_id' => $chatId,
+                        'text' => $message,
+                        'parse_mode' => 'Markdown'
+                    ];
+                    $response = $client->post($url, ['timeout' => 10, 'json' => $payload]);
+                    $body = json_decode($response->getBody(), true);
+                    $telegramSent = ($response->getStatusCode() === 200 && isset($body['ok']) && $body['ok'] === true);
+                } catch (\Exception $e) {
+                    log_message('error', 'RAM auto-stop telegram error: ' . $e->getMessage());
+                }
+            }
 
-                                if ($ramStopStreamsEnabled !== '1') {
-                                    return $this->response->setJSON(['success' => false, 'message' => 'Auto-stop streams is disabled'])->setStatusCode(400);
-                                }
-
-                                if ($percent <= $threshold) {
-                                    return $this->response->setJSON(['success' => false, 'message' => 'RAM usage is below threshold'])->setStatusCode(400);
-                                }
-
-                                try {
-                                    // Get all active streams
-                                    $streamModel = new \App\Models\StreamModel();
-                                    $activeStreams = $streamModel->whereIn('status', ['starting', 'running', 'paused'])->findAll();
-                
-                                    $stoppedCount = 0;
-                                    $errors = [];
-                
-                                    foreach ($activeStreams as $stream) {
-                                        try {
-                                            // Call the stop API for each stream
-                                            $client = \Config\Services::curlrequest();
-                                            $baseUrl = $this->settingsModel->getSetting('bot_bridge_url') ?: 'http://127.0.0.1:8766';
-                                            $token = trim((string) $this->settingsModel->getSetting('bot_bridge_token'));
-                        
-                                            if ($baseUrl && $token) {
-                                                $response = $client->post($baseUrl . '/api/stream/stop/' . $stream['id'], [
-                                                    'timeout' => 10,
-                                                    'headers' => [
-                                                        'Authorization' => 'Bearer ' . $token,
-                                                        'Accept' => 'application/json',
-                                                    ]
-                                                ]);
-                            
-                                                if ($response->getStatusCode() === 200) {
-                                                    $stoppedCount++;
-                                                } else {
-                                                    $errors[] = "Stream #{$stream['id']}: " . $response->getBody();
-                                                }
-                                            } else {
-                                                $errors[] = "Stream #{$stream['id']}: Bot bridge not configured";
-                                            }
-                                        } catch (\Exception $e) {
-                                            $errors[] = "Stream #{$stream['id']}: " . $e->getMessage();
-                                        }
-                                    }
-
-                                    // Send Telegram notification if enabled
-                                    $telegramSent = false;
-                                    if ($ramNotificationsEnabled === '1' && !empty($botToken) && !empty($chatId)) {
-                                        try {
-                                            $client = \Config\Services::curlrequest();
-                                            $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
-                                            $message = '🛑 *Auto-Stop Triggered*: RAM usage reached *' . number_format($percent, 2) . '*% (threshold: *' . $threshold . '*%)\n\nStopped ' . $stoppedCount . ' active stream(s) to prevent system instability.';
-                                            $payload = [
-                                                'chat_id' => $chatId,
-                                                'text' => $message,
-                                                'parse_mode' => 'Markdown'
-                                            ];
-                                            $response = $client->post($url, ['timeout' => 10, 'json' => $payload]);
-                                            $body = json_decode($response->getBody(), true);
-                                            $telegramSent = ($response->getStatusCode() === 200 && isset($body['ok']) && $body['ok'] === true);
-                                        } catch (\Exception $e) {
-                                            log_message('error', 'RAM auto-stop telegram error: ' . $e->getMessage());
-                                        }
-                                    }
-
-                                    return $this->response->setJSON([
-                                        'success' => true,
-                                        'message' => "Auto-stop executed: {$stoppedCount} stream(s) stopped" . ($errors ? " | Errors: " . implode('; ', $errors) : ''),
-                                        'stopped_count' => $stoppedCount,
-                                        'errors' => $errors,
-                                        'telegram_sent' => $telegramSent
-                                    ]);
-            
-                                } catch (\Exception $e) {
-                                    log_message('error', 'RAM auto-stop error: ' . $e->getMessage());
-                                    return $this->response->setJSON(['success' => false, 'message' => client_error($e, 'Error')])->setStatusCode(500);
-                                }
-                            }
+            return $this->response->setJSON([
+                'success' => true,
+                'message' => "Auto-stop executed: {$stoppedCount} stream(s) stopped" . ($errors ? " | Errors: " . implode('; ', $errors) : ''),
+                'stopped_count' => $stoppedCount,
+                'errors' => $errors,
+                'telegram_sent' => $telegramSent
+            ]);
+        } catch (\Exception $e) {
+            log_message('error', 'RAM auto-stop error: ' . $e->getMessage());
+            return $this->response->setJSON(['success' => false, 'message' => client_error($e, 'Error')])->setStatusCode(500);
+        }
+    }
 
     public function checkPythonHealth()
     {
@@ -427,7 +429,7 @@ class Settings extends BaseController
         }
 
         $botBridge = new BotBridge();
-        
+
         // Cek apakah sudah berjalan
         $health = $botBridge->health($baseUrl, $token);
         if ($health['success']) {
@@ -442,7 +444,7 @@ class Settings extends BaseController
         // Health check gagal = BayzBot mungkin belum berjalan atau sedang booting
         // Coba auto-start, tapi jangan kill process jika health check gagal
         $startup = $botBridge->ensureRunning($this->settingsModel);
-        
+
         // Jika auto-start berhasil dimulai, berikan waktu untuk booting (~3 detik)
         if (!$startup['success']) {
             return $this->response->setJSON([
@@ -487,8 +489,6 @@ class Settings extends BaseController
         }
 
         $root = rtrim(ROOTPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-        $backendPath = $root . 'backend_gui.py';
-        $launcherPath = $root . 'run_backend_headless.bat';
         $windowsDirectory = rtrim((string) getenv('WINDIR'), '\\/');
         $powershell = $windowsDirectory . '\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 
@@ -499,35 +499,82 @@ class Settings extends BaseController
             ])->setStatusCode(500);
         }
 
-        $backendLiteral = str_replace("'", "''", $backendPath);
-        $launcherLiteral = str_replace("'", "''", $launcherPath);
+        $rootLiteral = str_replace("'", "''", $root);
         $script = <<<'POWERSHELL'
-$backendPath = '__BACKEND_PATH__'
-$launcherPath = '__LAUNCHER_PATH__'
-$all = @(Get-CimInstance Win32_Process -ErrorAction Stop)
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$root = '__ROOT_PATH__'
+
+$all = @(Get-CimInstance Win32_Process)
+$byId = @{}
+foreach ($p in $all) { $byId[[int]$p.ProcessId] = $p }
+
+# Proses ini dan induknya (php/server web) tidak boleh ikut dihentikan.
+$protected = @{}
+$cursor = [int]$PID
+while ($cursor -gt 0 -and $byId.ContainsKey($cursor) -and -not $protected.ContainsKey($cursor)) {
+    $protected[$cursor] = $true
+    $cursor = [int]$byId[$cursor].ParentProcessId
+}
+
+$wsPort = 8765
+$httpPort = 8766
+$cfgPath = Join-Path $root 'gui_config.json'
+if (Test-Path -LiteralPath $cfgPath) {
+    try {
+        $cfg = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($cfg.ws_port -as [int]) { $wsPort = [int]$cfg.ws_port }
+        if ($cfg.http_api_port -as [int]) { $httpPort = [int]$cfg.http_api_port }
+    } catch { }
+}
+$ports = @($wsPort, $httpPort)
+
 $targets = @{}
-foreach ($process in $all) {
-    $commandLine = [string]$process.CommandLine
-    if ($commandLine.IndexOf($backendPath, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-        $commandLine.IndexOf($launcherPath, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
-        $targets[[int]$process.ProcessId] = $process
+foreach ($p in $all) {
+    $id = [int]$p.ProcessId
+    if ($protected.ContainsKey($id)) { continue }
+    $line = [string]$p.CommandLine
+    if ([string]::IsNullOrEmpty($line)) { continue }
+    $name = [string]$p.Name
+    $isPython = $name -match '^(python|pythonw|py)\.exe$'
+    $isCmd = $name -ieq 'cmd.exe'
+    if ($isPython -and $line.IndexOf('backend_gui.py', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        $targets[$id] = $p
+    } elseif ($isCmd -and (
+            $line.IndexOf('run_backend_headless.bat', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+            $line.IndexOf('run_backend_gui.bat', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+        $targets[$id] = $p
     }
 }
 
+# Python yang memegang port WebSocket / HTTP API BayzBot.
+try {
+    $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction Stop |
+        Where-Object { $ports -contains [int]$_.LocalPort })
+    foreach ($c in $listeners) {
+        $id = [int]$c.OwningProcess
+        if ($id -le 4 -or $protected.ContainsKey($id) -or -not $byId.ContainsKey($id)) { continue }
+        if ($byId[$id].Name -match '^(python|pythonw)\.exe$') { $targets[$id] = $byId[$id] }
+    }
+} catch { }
+
+# Proses anak (cek waktu pembuatan agar tidak salah kena PID yang dipakai ulang).
 $changed = $true
 while ($changed) {
     $changed = $false
-    foreach ($process in $all) {
-        $processId = [int]$process.ProcessId
-        $parentId = [int]$process.ParentProcessId
-        if (-not $targets.ContainsKey($processId) -and $targets.ContainsKey($parentId)) {
-            $targets[$processId] = $process
-            $changed = $true
-        }
+    foreach ($p in $all) {
+        $id = [int]$p.ProcessId
+        if ($protected.ContainsKey($id) -or $targets.ContainsKey($id)) { continue }
+        $parentId = [int]$p.ParentProcessId
+        if (-not $targets.ContainsKey($parentId)) { continue }
+        $parent = $byId[$parentId]
+        if ($parent.CreationDate -and $p.CreationDate -and $parent.CreationDate -gt $p.CreationDate) { continue }
+        $targets[$id] = $p
+        $changed = $true
     }
 }
 
-$foundIds = @($targets.Keys | ForEach-Object { [int]$_ })
+$foundIds = @($targets.Keys | ForEach-Object { [int]$_ } | Sort-Object -Unique)
 if ($foundIds.Count -eq 0) {
     [pscustomobject]@{ success = $true; found = @(); stopped = @(); remaining = @(); errors = @() } |
         ConvertTo-Json -Compress
@@ -541,49 +588,81 @@ foreach ($processId in $foundIds) {
         Stop-Process -Id ([int]$processId) -Force -ErrorAction Stop
         $stoppedIds += [int]$processId
     } catch {
-        $errors += "PID $processId`: $($_.Exception.Message)"
+        if (Get-Process -Id ([int]$processId) -ErrorAction SilentlyContinue) {
+            $errors += "PID $processId`: $($_.Exception.Message)"
+        } else {
+            $stoppedIds += [int]$processId
+        }
     }
 }
 
 $stillRunning = @()
 for ($attempt = 0; $attempt -lt 10; $attempt++) {
     Start-Sleep -Milliseconds 300
-    $stillRunning = @(Get-CimInstance Win32_Process -ErrorAction Stop |
-        Where-Object { $targets.ContainsKey([int]$_.ProcessId) } |
-        ForEach-Object { [int]$_.ProcessId })
+    $stillRunning = @($foundIds | Where-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue })
     if ($stillRunning.Count -eq 0) { break }
 }
 
 [pscustomobject]@{
     success = ($stillRunning.Count -eq 0)
-    found = @($foundIds | Sort-Object -Unique)
+    found = @($foundIds)
     stopped = @($stoppedIds | Sort-Object -Unique)
     remaining = @($stillRunning | Sort-Object -Unique)
     errors = @($errors)
 } | ConvertTo-Json -Compress
 POWERSHELL;
-        $script = str_replace(
-            ['__BACKEND_PATH__', '__LAUNCHER_PATH__'],
-            [$backendLiteral, $launcherLiteral],
-            $script
-        );
-        $utf16Script = iconv('UTF-8', 'UTF-16LE', $script);
-        if ($utf16Script === false) {
+        $script = str_replace('__ROOT_PATH__', $rootLiteral, $script);
+        // Skrip terlalu panjang untuk -EncodedCommand (batas command line cmd.exe 8191
+        // karakter), jadi ditulis ke file .ps1 sementara lalu dijalankan dengan -File.
+        $cacheDirectory = rtrim(WRITEPATH, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'cache';
+        if (!is_dir($cacheDirectory) && !@mkdir($cacheDirectory, 0775, true) && !is_dir($cacheDirectory)) {
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Tidak dapat menyiapkan perintah untuk menghentikan proses BayzBot.',
+                'message' => 'Tidak dapat menyiapkan folder sementara untuk menghentikan proses BayzBot.',
+            ])->setStatusCode(500);
+        }
+        $runId = bin2hex(random_bytes(6));
+        $scriptPath = $cacheDirectory . DIRECTORY_SEPARATOR . 'bayzbot-stop-' . $runId . '.ps1';
+        $errorPath = $cacheDirectory . DIRECTORY_SEPARATOR . 'bayzbot-stop-' . $runId . '.err';
+        // BOM UTF-8 agar Windows PowerShell 5.1 membaca path non-ASCII dengan benar.
+        if (@file_put_contents($scriptPath, "\xEF\xBB\xBF" . $script, LOCK_EX) === false) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Tidak dapat menulis skrip sementara untuk menghentikan proses BayzBot.',
             ])->setStatusCode(500);
         }
 
-        $command = '"' . $powershell . '" -NoProfile -NonInteractive -EncodedCommand '
-            . base64_encode($utf16Script) . ' 2>&1';
-        $output = shell_exec($command);
-        $result = is_string($output) ? json_decode(trim($output), true) : null;
+        $stderrText = '';
+        try {
+            $command = '"' . $powershell . '" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "'
+                . $scriptPath . '" 2>"' . $errorPath . '"';
+            $output = shell_exec($command);
+            $stderrText = trim((string) @file_get_contents($errorPath));
+        } finally {
+            @unlink($scriptPath);
+            @unlink($errorPath);
+        }
+        $json = null;
+        foreach (preg_split('/\R/', (string) $output) as $line) {
+            $line = trim($line);
+            if ($line !== '' && $line[0] === '{') {
+                $json = $line;
+                break;
+            }
+        }
+        $result = $json !== null ? json_decode($json, true) : null;
         if (!is_array($result) || !isset($result['success'])) {
-            log_message('error', 'BayzBot process stop returned an invalid response: ' . (string) $output);
+            $rawOutput = trim((string) $output);
+            log_message('error', 'BayzBot process stop returned an invalid response. stdout={stdout}; stderr={stderr}', [
+                'stdout' => mb_substr($rawOutput, 0, 800),
+                'stderr' => mb_substr($stderrText, 0, 800),
+            ]);
             return $this->response->setJSON([
                 'success' => false,
-                'message' => 'Tidak dapat memverifikasi penghentian seluruh proses BayzBot.',
+                'message' => 'Tidak dapat memverifikasi penghentian seluruh proses BayzBot. '
+                    . ($rawOutput === '' ? 'PowerShell tidak mengembalikan output. ' : '')
+                    . 'Detail ada di writable/logs/log-' . date('Y-m-d') . '.log.',
+                'detail' => mb_substr($rawOutput !== '' ? $rawOutput : $stderrText, 0, 400),
             ])->setStatusCode(500);
         }
 
@@ -646,7 +725,7 @@ POWERSHELL;
         } else {
             $nonEmptyFiles = array_values(array_filter(
                 $files,
-                static fn ($file) => is_file($file) && filesize($file) > 0
+                static fn($file) => is_file($file) && filesize($file) > 0
             ));
             if ($nonEmptyFiles === []) {
                 return $this->response->setJSON([
@@ -656,7 +735,7 @@ POWERSHELL;
                     'log_file' => basename($stdoutLog),
                 ]);
             }
-            usort($nonEmptyFiles, fn ($a, $b) => filemtime($b) <=> filemtime($a));
+            usort($nonEmptyFiles, fn($a, $b) => filemtime($b) <=> filemtime($a));
             $latestLog = reset($nonEmptyFiles);
         }
 
