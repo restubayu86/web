@@ -23,6 +23,7 @@ class Menu extends BaseConfig
     public array $items = [
         ['key' => 'stream',   'label' => 'Stream',   'path' => 'stream',   'icon' => 'bi-broadcast'],
         ['key' => 'browser',  'label' => 'Browser',  'path' => 'browser',  'icon' => 'bi-browser-chrome'],
+        ['key' => 'chromium', 'label' => 'Chromium', 'path' => 'chromium', 'icon' => 'bi-browser-chrome'],
         ['key' => 'proxies',  'label' => 'Proxies',  'path' => 'proxies',  'icon' => 'bi-globe'],
         ['key' => 'playlist', 'label' => 'Playlist', 'path' => 'playlist', 'icon' => 'bi-collection-play'],
         ['key' => 'log',      'label' => 'Log',      'path' => 'log',      'icon' => 'bi-journal-text'],

@@ -1,0 +1,1 @@
+globalThis.BAYZBOT_CHROMIUM_CONFIG = {};

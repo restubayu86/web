@@ -31,6 +31,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
 
     // Halaman
     $routes->get('browser', 'Monitoring::index');
+    $routes->get('chromium', 'Chromium::index');
     $routes->get('proxies', 'Proxies::index');
     $routes->get('playlist', 'Playlist::index');
     $routes->get('stream', 'Stream::index');
@@ -57,6 +58,16 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/profiles', 'Monitoring::getProfiles');
     $routes->post('api/start/(:num)', 'Monitoring::startProfile/$1');
     $routes->post('api/stop/(:num)', 'Monitoring::stopProfile/$1');
+
+    // API: profil Chromium lokal
+    $routes->get('api/chromium/profiles', 'Chromium::getProfiles');
+    $routes->post('api/chromium/profiles', 'Chromium::createProfile');
+    $routes->post('api/chromium/profiles/(:num)/update', 'Chromium::updateProfile/$1');
+    $routes->post('api/chromium/profiles/(:num)/delete', 'Chromium::deleteProfile/$1');
+    $routes->post('api/chromium/profiles/(:num)/start', 'Chromium::startProfile/$1');
+    $routes->post('api/chromium/profiles/(:num)/stop', 'Chromium::stopProfile/$1');
+    $routes->post('api/chromium/executable', 'Chromium::saveExecutable');
+    $routes->get('api/chromium/proxies', 'Chromium::getProxies');
 
     // API: proxy
     $routes->get('api/proxy/all', 'Proxies::getAll');

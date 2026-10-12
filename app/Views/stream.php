@@ -503,22 +503,28 @@
                     }
                 }
 
-        function loadProfiles() {
-            // Daftar profil diambil dari Dolphin{anty} lewat Monitoring::getProfiles
-            fetch(`${baseUrl}api/profiles`)
-                .then(res => res.json())
-                .then(data => {
-                    const profiles = Array.isArray(data.data) ? data.data : [];
-                    const select = document.getElementById('streamProfile');
-                    profiles.forEach(profile => {
-                        const option = document.createElement('option');
-                        option.value = profile.id;
-                        option.textContent = profile.name || profile.profile_name || ('Profil ' + profile.id);
-                        select.appendChild(option);
-                    });
-                    updateAvailableProfiles();
-                })
-                .catch(() => { /* dropdown dibiarkan kosong jika token Dolphin belum diatur */ });
+        async function loadProfiles() {
+            const select = document.getElementById('streamProfile');
+            select.innerHTML = '<option value="">Select a profile...</option>';
+            const [dolphinResponse, chromiumResponse] = await Promise.all([
+                fetch(`${baseUrl}api/profiles`).then(response => response.json()),
+                fetch(`${baseUrl}api/chromium/profiles`).then(response => response.json())
+            ]);
+            const dolphinProfiles = Array.isArray(dolphinResponse.data) ? dolphinResponse.data : [];
+            const chromiumProfiles = chromiumResponse.success && Array.isArray(chromiumResponse.data) ? chromiumResponse.data : [];
+            dolphinProfiles.forEach(profile => {
+                const option = document.createElement('option');
+                option.value = profile.id;
+                option.textContent = `Dolphin · ${profile.name || profile.profile_name || ('Profile ' + profile.id)}`;
+                select.appendChild(option);
+            });
+            chromiumProfiles.forEach(profile => {
+                const option = document.createElement('option');
+                option.value = profile.bridge_id;
+                option.textContent = `Chromium · ${profile.profile_name}`;
+                select.appendChild(option);
+            });
+            updateAvailableProfiles();
         }
 
         function updateAvailableProfiles() {
@@ -581,7 +587,7 @@
                             <i class="bi bi-broadcast text-2xl"></i>
                         </div>
                         <h3 class="mt-4 text-lg font-semibold text-white">No streams yet</h3>
-                        <p class="mt-1 text-sm text-gray-500">Create a stream to control playback for a Dolphin profile.</p>
+                        <p class="mt-1 text-sm text-gray-500">Create a stream to control playback for a Dolphin or Chromium profile.</p>
                         <button type="button" onclick="openCreateStreamModal()" class="mt-5 inline-flex items-center gap-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 px-4 py-2.5 text-sm font-medium text-cyan-300 hover:bg-cyan-500/20 transition-colors">
                             <i class="bi bi-plus-lg"></i> Create your first stream
                         </button>
@@ -613,7 +619,7 @@
                                     </div>
                                     <div class="min-w-0">
                                         <h3 class="font-semibold text-white break-words">${escapeHtml(stream.stream_name)}</h3>
-                                        <p class="mt-1 text-xs text-gray-500">${stream.profile_id ? `Profile #${escapeHtml(stream.profile_id)}` : 'No profile assigned'}${stream.playlist_id ? ` <span class="mx-1 text-gray-700">·</span> Playlist #${escapeHtml(stream.playlist_id)}` : ''}</p>
+                                        <p class="mt-1 text-xs text-gray-500">${stream.profile_id ? `${escapeHtml(stream.browser_type || 'Browser')} · ${escapeHtml(stream.profile_name || `Profile #${stream.profile_id}`)}` : 'No profile assigned'}${stream.playlist_id ? ` <span class="mx-1 text-gray-700">·</span> Playlist #${escapeHtml(stream.playlist_id)}` : ''}</p>
                                     </div>
                                 </div>
                                 <span class="inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${statusClass}">

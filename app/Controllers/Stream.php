@@ -3,6 +3,8 @@
 namespace App\Controllers;
 
 use App\Libraries\BotBridge;
+use App\Libraries\ChromiumLauncher;
+use App\Models\ChromiumProfileModel;
 use App\Models\PlaylistModel;
 use App\Models\SettingsModel;
 use App\Models\StreamModel;
@@ -28,6 +30,7 @@ class Stream extends BaseController
     public function getAll()
     {
         [$streams, $warnings] = $this->syncBotStreams($this->streamModel->findAll());
+        $streams = $this->withProfileInfo($streams);
         $response = [
             'success' => true,
             'data' => $streams,
@@ -41,6 +44,7 @@ class Stream extends BaseController
     public function getActive()
     {
         [$streams, $warnings] = $this->syncBotStreams($this->streamModel->getActiveStreams());
+        $streams = $this->withProfileInfo($streams);
         $streams = array_map(fn (array $stream): array => $this->withDuration($stream), $streams);
         $streams = array_values(array_filter($streams, static fn (array $stream): bool => $stream['status'] === 'running'));
         $response = [
@@ -63,7 +67,7 @@ class Stream extends BaseController
             ])->setStatusCode(404);
         }
 
-        $stream = $this->withDuration($stream);
+        $stream = $this->withProfileInfo([$this->withDuration($stream)])[0];
         return $this->response->setJSON([
             'success' => true,
             'data' => $stream,
@@ -73,6 +77,7 @@ class Stream extends BaseController
     public function getByProfile($profileId)
     {
         [$streams, $warnings] = $this->syncBotStreams($this->streamModel->getStreamsByProfile($profileId));
+        $streams = $this->withProfileInfo($streams);
         $streams = array_map(fn (array $stream): array => $this->withDuration($stream), $streams);
         $response = [
             'success' => true,
@@ -305,11 +310,40 @@ class Stream extends BaseController
 
         $settings = new SettingsModel();
         $bridge = new BotBridge();
+        $chromiumProfile = $action === 'play'
+            ? $this->chromiumProfile((int) $stream['profile_id'])
+            : null;
         if ($action === 'play' && in_array($stream['status'], ['starting', 'running', 'paused'], true)) {
             $bridgeUrl = BotBridge::normalizeUrl($settings->getSetting('bot_bridge_url'));
             $bridgeToken = trim((string) $settings->getSetting('bot_bridge_token'));
             if ($bridgeUrl === null || $bridgeToken === '') {
                 return $this->bridgeUnavailable('Konfigurasi URL/token BayzBot belum siap.');
+            }
+            if ($chromiumProfile !== null) {
+                $startup = $bridge->ensureRunning($settings);
+                if (!$startup['success']) {
+                    return $this->response->setJSON($startup)->setStatusCode(503);
+                }
+                $launch = $this->ensureChromiumRunning($chromiumProfile);
+                if (!$launch['success']) {
+                    return $this->response->setJSON($launch)->setStatusCode((int) ($launch['status'] ?? 500));
+                }
+                $deadline = microtime(true) + 30;
+                do {
+                    $health = $bridge->health($bridgeUrl, $bridgeToken);
+                    if ($health['success']
+                        && in_array((string) $stream['profile_id'], array_map('strval', $health['connected_profiles'] ?? []), true)) {
+                        break;
+                    }
+                    usleep(500000);
+                } while (microtime(true) < $deadline);
+                if (!$health['success']
+                    || !in_array((string) $stream['profile_id'], array_map('strval', $health['connected_profiles'] ?? []), true)) {
+                    return $this->response->setJSON([
+                        'success' => false,
+                        'message' => 'Ekstensi BayzBot Chromium belum terhubung. Pastikan Chromium berjalan dan ekstensi BayzBot aktif.',
+                    ])->setStatusCode(503);
+                }
             }
             $result = $bridge->control($bridgeUrl, $bridgeToken, (int) $stream['profile_id'], 'play');
         } elseif ($action === 'play') {
@@ -359,10 +393,27 @@ class Stream extends BaseController
                     'message' => 'Backend BayzBot belum siap: ' . $health['message'],
                 ])->setStatusCode(503);
             }
+            if ($chromiumProfile !== null) {
+                $launch = $this->ensureChromiumRunning($chromiumProfile);
+                if (!$launch['success']) {
+                    return $this->response->setJSON($launch)->setStatusCode((int) ($launch['status'] ?? 500));
+                }
+                $profileId = (int) $stream['profile_id'];
+                $deadline = microtime(true) + 30;
+                while (!in_array((string) $profileId, array_map('strval', $health['connected_profiles'] ?? []), true) && microtime(true) < $deadline) {
+                    usleep(500000);
+                    $health = $bridge->health($bridgeUrl, $bridgeToken);
+                    if (!$health['success']) {
+                        break;
+                    }
+                }
+            }
             if (!in_array((string) $stream['profile_id'], array_map('strval', $health['connected_profiles'] ?? []), true)) {
                 return $this->response->setJSON([
                     'success' => false,
-                    'message' => 'Extension BayzBot untuk profil Dolphin ini belum terhubung. Buka profil yang sudah ditautkan, lalu coba lagi.',
+                    'message' => $chromiumProfile !== null
+                        ? 'Ekstensi BayzBot Chromium belum terhubung. Pastikan Chromium berjalan dan ekstensi BayzBot aktif.'
+                        : 'Extension BayzBot untuk profil Dolphin ini belum terhubung. Buka profil yang sudah ditautkan, lalu coba lagi.',
                 ])->setStatusCode(503);
             }
 
@@ -493,6 +544,68 @@ class Stream extends BaseController
         $stream['stream_duration'] = $this->streamModel->calculateDuration((int) $stream['id']);
 
         return $stream;
+    }
+
+    private function withProfileInfo(array $streams): array
+    {
+        $chromiumProfiles = (new ChromiumProfileModel())->findAll();
+        $byBridgeId = [];
+        foreach ($chromiumProfiles as $profile) {
+            $byBridgeId[(string) ChromiumProfileModel::bridgeId((int) $profile['id'])] = $profile;
+        }
+
+        foreach ($streams as &$stream) {
+            $profileId = (string) ($stream['profile_id'] ?? '');
+            $chromiumProfile = ctype_digit($profileId)
+                ? ($byBridgeId[$profileId] ?? null)
+                : null;
+            if ($chromiumProfile !== null) {
+                $stream['browser_type'] = 'Chromium';
+                $stream['profile_name'] = (string) $chromiumProfile['profile_name'];
+            } elseif ($profileId !== '') {
+                $stream['browser_type'] = 'Dolphin';
+                $stream['profile_name'] = 'Profile #' . $profileId;
+            } else {
+                $stream['browser_type'] = null;
+                $stream['profile_name'] = null;
+            }
+        }
+        unset($stream);
+
+        return $streams;
+    }
+
+    private function chromiumProfile(int $bridgeId): ?array
+    {
+        $profileId = ChromiumProfileModel::idFromBridgeId($bridgeId);
+        if ($profileId === null) {
+            return null;
+        }
+
+        return (new ChromiumProfileModel())->find($profileId) ?: null;
+    }
+
+    private function ensureChromiumRunning(array $profile): array
+    {
+        $model = new ChromiumProfileModel();
+        $executable = ChromiumProfileModel::executablePath();
+        $launcher = new ChromiumLauncher();
+        if ($launcher->isRunning($profile, $executable)) {
+            return ['success' => true];
+        }
+
+        $result = $launcher->start($profile, $executable);
+        if (!$result['success']) {
+            return $result;
+        }
+        if (!$model->update((int) $profile['id'], ['process_id' => (int) $result['process_id']])) {
+            log_message('error', 'Chromium stream opened, but its process ID could not be saved for profile {id}.', [
+                'id' => $profile['id'],
+            ]);
+            return ['success' => false, 'message' => 'Chromium dibuka, tetapi status proses gagal disimpan.', 'status' => 500];
+        }
+
+        return ['success' => true];
     }
 
     private function syncBotStreams(array $streams): array

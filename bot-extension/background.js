@@ -1,3 +1,5 @@
+importScripts("chromium-config.js");
+
 const DEFAULT_URL = "ws://localhost:8765";
 const RECONNECT_ALARM = "bayzbot-reconnect";
 const KEEPALIVE_ALARM = "bayzbot-keepalive";
@@ -30,10 +32,14 @@ async function connect() {
 
     try {
         const settings = await chrome.storage.local.get(["backendUrl", "profileId", "instanceId"]);
-        const profileId = String(settings.profileId || "").trim();
+        const chromiumConfig = globalThis.BAYZBOT_CHROMIUM_CONFIG || {};
+        const profileId = String(settings.profileId || chromiumConfig.profileId || "").trim();
         if (!profileId) {
             console.warn("BayzBot: set the Dolphin Browser Profile ID in extension Options.");
             return;
+        }
+        if (!settings.profileId && chromiumConfig.profileId) {
+            await chrome.storage.local.set({ profileId });
         }
 
         let instanceId = settings.instanceId;
@@ -51,7 +57,7 @@ async function connect() {
             sendSocket({
                 type: "hello",
                 instanceId,
-                instanceLabel: `Dolphin profile ${profileId}`,
+                instanceLabel: chromiumConfig.profileId ? `Chromium profile ${profileId}` : `Dolphin profile ${profileId}`,
                 browserProfileId: profileId,
                 version: chrome.runtime.getManifest().version
             });
@@ -84,6 +90,21 @@ async function connect() {
     } finally {
         connectInProgress = false;
     }
+}
+
+if (chrome.webRequest?.onAuthRequired && globalThis.BAYZBOT_CHROMIUM_CONFIG?.proxyAuth) {
+    const proxyAuth = globalThis.BAYZBOT_CHROMIUM_CONFIG.proxyAuth;
+    chrome.webRequest.onAuthRequired.addListener(
+        (details, callback) => {
+            if (details.isProxy) {
+                callback({ authCredentials: proxyAuth });
+                return;
+            }
+            callback({});
+        },
+        { urls: ["<all_urls>"] },
+        ["asyncBlocking"]
+    );
 }
 
 function scheduleReconnect() {

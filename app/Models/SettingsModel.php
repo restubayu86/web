@@ -17,10 +17,10 @@ class SettingsModel extends Model
     protected $createdField = 'created_at';
     protected $updatedField = 'updated_at';
 
-    public function getSetting($key)
+    public function getSetting(string $key): ?string
     {
         $result = $this->where('key', $key)->first();
-        return $result ? $result['value'] : null;
+            return $result ? (string) $result['value'] : null;
     }
 
     public function setSetting($key, $value)
