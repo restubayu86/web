@@ -133,3 +133,11 @@ _modules/*
 /__pycache__/
 /backend_gui.*.pyc
 .env
+
+# Berkas rahasia / sementara
+/user.txt
+/cookies.txt
+/check_logs.php
+
+# Profil Chromium dibuat saat runtime
+/writable/chromium-profiles/

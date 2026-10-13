@@ -1,1 +1,0 @@
-globalThis.BAYZBOT_CHROMIUM_CONFIG = {"profileId":"1000000001","proxyAuth":null};
