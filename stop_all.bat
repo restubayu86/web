@@ -1,19 +1,19 @@
 @echo off
 setlocal
 rem ==========================================================================
-rem  stop_all_bayzbot.bat - hentikan semua proses backend BayzBot.
+rem  stop_all.bat - hentikan semua proses backend BayzBot.
 rem
 rem  Pemakaian:
-rem    stop_all_bayzbot.bat              hentikan semua proses BayzBot
-rem    stop_all_bayzbot.bat --dry-run    hanya tampilkan, tidak menghentikan
-rem    stop_all_bayzbot.bat --no-pause   jangan menunggu tombol di akhir
-rem    stop_all_bayzbot.bat --keep-web   jangan hentikan web server (php spark serve)
+rem    stop_all.bat              hentikan semua proses BayzBot
+rem    stop_all.bat --dry-run    hanya tampilkan, tidak menghentikan
+rem    stop_all.bat --no-pause   jangan menunggu tombol di akhir
+rem    stop_all.bat --keep-web   jangan hentikan web server (php spark serve)
 rem
 rem  Yang dihentikan:
-rem    1. python.exe/pythonw.exe/py.exe yang menjalankan backend_gui.py
+rem    1. python.exe/pythonw.exe/py.exe yang menjalankan backend.py di folder INI
 rem       (dari folder mana pun, termasuk yang dijalankan dengan nama
-rem       relatif "python backend_gui.py").
-rem    2. cmd.exe yang menjalankan run_backend_headless.bat / run_backend_gui.bat.
+rem       (path lengkap; nama lama backend_gui.py juga dikenali).
+rem    2. cmd.exe yang menjalankan run_headless.bat / run_gui.bat di folder INI.
 rem    3. python.exe/pythonw.exe yang memegang port WebSocket / HTTP API di
 rem       gui_config.json (default 8765 / 8766).
 rem    4. Web server CI4: php.exe yang menjalankan "spark serve", jendela Git Bash
@@ -51,6 +51,7 @@ exit /b %RC%
 $ErrorActionPreference = 'Continue'
 $ProgressPreference = 'SilentlyContinue'
 $root = [IO.Path]::GetFullPath($env:APP_ROOT)
+$rootPrefix = $root.TrimEnd('\') + '\'
 $dryRun = ($env:DRY_RUN -eq '1')
 $keepWeb = ($env:KEEP_WEB -eq '1')
 
@@ -89,6 +90,17 @@ $targets = @{}
 function Test-Cmd([string]$line, [string]$text) {
     return $line.IndexOf($text, [StringComparison]::OrdinalIgnoreCase) -ge 0
 }
+
+# Cocokkan hanya skrip di folder INI (path lengkap), supaya backend.py / run_*.bat
+# milik proyek lain dengan nama yang sama tidak ikut dihentikan. Nama lama tetap dikenali.
+$backendNames = @('backend.py', 'backend_gui.py')
+$launcherNames = @('run_headless.bat', 'run_gui.bat', 'run_backend_headless.bat', 'run_backend_gui.bat')
+function Test-Own([string]$line, [string[]]$names) {
+    foreach ($name in $names) {
+        if (Test-Cmd $line ($rootPrefix + $name)) { return $true }
+    }
+    return $false
+}
 foreach ($p in $all) {
     $id = [int]$p.ProcessId
     if ($protected.ContainsKey($id)) { continue }
@@ -99,15 +111,15 @@ foreach ($p in $all) {
     $isPhp = $name -match '^php(-cgi|-win)?\.exe$'
     $isCmd = $name -ieq 'cmd.exe'
     $isShell = $name -match '^(bash|sh|mintty)\.exe$'
-    if ($isPython -and (Test-Cmd $line 'backend_gui.py')) {
+    if ($isPython -and (Test-Own $line $backendNames)) {
         $targets[$id] = $p
-    } elseif ($isCmd -and ((Test-Cmd $line 'run_backend_headless.bat') -or (Test-Cmd $line 'run_backend_gui.bat'))) {
+    } elseif ($isCmd -and (Test-Own $line $launcherNames)) {
         $targets[$id] = $p
     } elseif (-not $keepWeb -and $isPhp -and ($line -match '(?i)\bspark\b') -and ($line -match '(?i)\bserve\b')) {
         $targets[$id] = $p
     } elseif (-not $keepWeb -and $isShell -and ($line -match '(?i)\bspark\b') -and ($line -match '(?i)\bserve\b')) {
         $targets[$id] = $p
-    } elseif (-not $keepWeb -and $isCmd -and (Test-Cmd $line 'start_server.bat')) {
+    } elseif (-not $keepWeb -and $isCmd -and (Test-Cmd $line ($rootPrefix + 'start_server.bat'))) {
         $targets[$id] = $p
     }
 }

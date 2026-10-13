@@ -47,9 +47,9 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-:: 4. Pastikan backend_gui.py ada di folder yang sama
-if not exist "%~dp0backend_gui.py" (
-    echo [ERROR] backend_gui.py tidak ditemukan di folder ini:
+:: 4. Pastikan backend.py ada di folder yang sama
+if not exist "%~dp0backend.py" (
+    echo [ERROR] backend.py tidak ditemukan di folder ini:
     echo %~dp0
     pause
     exit /b 1
@@ -66,7 +66,7 @@ echo Menjalankan BayzBot Control Panel...
 echo ^(Jangan tutup jendela ini selagi aplikasi masih dipakai^)
 echo.
 cd /d "%~dp0"
-python -u backend_gui.py --gui
+python -u "%~dp0backend.py" --gui
 set BAYZBOT_EXIT=%errorlevel%
 
 echo.

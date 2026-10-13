@@ -30,10 +30,10 @@ Fitur:
 
 Jalankan:
     pip install websockets
-    python backend_gui.py
+    python backend.py
 
 Backend berjalan tanpa jendela Control Panel secara default.
-Gunakan `python backend_gui.py --gui` untuk membuka Control Panel.
+Gunakan `python backend.py --gui` untuk membuka Control Panel.
 """
 
 from __future__ import annotations
@@ -86,7 +86,7 @@ HTTP_API_PORT = 8766
 
 def get_ws_port() -> int:
     """Urutan prioritas: argumen CLI --port=XXXX > gui_config.json > default.
-    Berguna untuk menjalankan BEBERAPA salinan backend_gui.py sekaligus
+    Berguna untuk menjalankan BEBERAPA salinan backend.py sekaligus
     (mis. simulasi banyak user Chrome Web Store) -- tiap salinan dikasih
     port sendiri-sendiri supaya tidak saling tabrakan/nyambung ke
     instance Chrome yang salah."""
@@ -1484,7 +1484,7 @@ async def run_server():
             state.emit("log", {"text": f"[INFO] BayzBot lain sudah berjalan (port {port}/{http_api_port}); instance ini berhenti tanpa error."})
             return
         state.emit("log", {"text": f"[ERROR] Port {port} dipakai aplikasi lain, bukan BayzBot ini. Gunakan --port=XXXX atau ubah di Options."})
-        state.emit("log", {"text": f"Cth: python backend_gui.py --port=8766"})
+        state.emit("log", {"text": f"Cth: python backend.py --port=8766"})
         await asyncio.sleep(2)
         raise RuntimeError(f"Port {port} tidak tersedia")
     

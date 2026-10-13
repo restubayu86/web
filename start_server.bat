@@ -10,7 +10,7 @@ rem
 rem  Git Bash dicari otomatis (git.exe di PATH, lokasi standar, registry).
 rem  Bisa juga ditentukan manual:  set GIT_ROOT=D:\Tools\Git
 rem  Hentikan server dengan Ctrl+C di jendela Git Bash, atau pakai
-rem  stop_all_bayzbot.bat.
+rem  stop_all.bat.
 rem ==========================================================================
 
 cd /d "%~dp0"
