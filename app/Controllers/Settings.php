@@ -529,6 +529,18 @@ if (Test-Path -LiteralPath $cfgPath) {
 }
 $ports = @($wsPort, $httpPort)
 
+# Cocokkan hanya skrip di folder INI (path lengkap), supaya backend.py / run_*.bat
+# milik proyek lain dengan nama yang sama tidak ikut dihentikan. Nama lama tetap dikenali.
+$rootPrefix = $root.TrimEnd('\') + '\'
+$backendPaths = @('backend.py', 'backend_gui.py') | ForEach-Object { $rootPrefix + $_ }
+$launcherPaths = @('run_headless.bat', 'run_gui.bat', 'run_backend_headless.bat', 'run_backend_gui.bat') | ForEach-Object { $rootPrefix + $_ }
+function Test-Own([string]$line, [string[]]$paths) {
+    foreach ($path in $paths) {
+        if ($line.IndexOf($path, [StringComparison]::OrdinalIgnoreCase) -ge 0) { return $true }
+    }
+    return $false
+}
+
 $targets = @{}
 foreach ($p in $all) {
     $id = [int]$p.ProcessId
@@ -538,11 +550,9 @@ foreach ($p in $all) {
     $name = [string]$p.Name
     $isPython = $name -match '^(python|pythonw|py)\.exe$'
     $isCmd = $name -ieq 'cmd.exe'
-    if ($isPython -and $line.IndexOf('backend_gui.py', [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+    if ($isPython -and (Test-Own $line $backendPaths)) {
         $targets[$id] = $p
-    } elseif ($isCmd -and (
-            $line.IndexOf('run_backend_headless.bat', [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-            $line.IndexOf('run_backend_gui.bat', [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+    } elseif ($isCmd -and (Test-Own $line $launcherPaths)) {
         $targets[$id] = $p
     }
 }

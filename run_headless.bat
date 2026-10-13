@@ -11,4 +11,4 @@ if errorlevel 1 (
     if errorlevel 1 exit /b 1
 )
 
-python -u backend_gui.py --headless
+python -u "%~dp0backend.py" --headless

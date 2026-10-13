@@ -131,7 +131,7 @@ _modules/*
 /writable/*.db
 /gui_config.json
 /__pycache__/
-/backend_gui.*.pyc
+/backend.*.pyc
 .env
 
 # Berkas rahasia / sementara

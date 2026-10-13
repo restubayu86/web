@@ -107,7 +107,7 @@
             <section class="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 sm:p-6">
                 <h2 class="font-semibold text-amber-200 flex items-center gap-2"><i class="bi bi-exclamation-triangle"></i> Menghentikan BayzBot</h2>
                 <p class="text-sm text-gray-300 mt-2">Gunakan tombol <strong class="text-white">Stop All BayzBot Processes</strong> pada Settings untuk menghentikan proses BayzBot dan proses turunannya. Playback aktif akan terputus; proses Python lain tidak ditarget.</p>
-                <p class="text-sm text-gray-300 mt-2">Alternatif dari Windows: jalankan <code class="text-amber-200">stop_all_bayzbot.bat</code> di folder proyek. Untuk melihat PID yang akan ditarget tanpa menghentikannya, gunakan argumen <code class="text-amber-200">--dry-run</code>. Server web dihentikan terpisah dengan <kbd class="rounded border border-gray-600 px-1.5 py-0.5 text-xs">Ctrl+C</kbd> di terminal server.</p>
+                <p class="text-sm text-gray-300 mt-2">Alternatif dari Windows: jalankan <code class="text-amber-200">stop_all.bat</code> di folder proyek. Untuk melihat PID yang akan ditarget tanpa menghentikannya, gunakan argumen <code class="text-amber-200">--dry-run</code>. Server web dihentikan terpisah dengan <kbd class="rounded border border-gray-600 px-1.5 py-0.5 text-xs">Ctrl+C</kbd> di terminal server.</p>
             </section>
 
             <section class="rounded-2xl border border-gray-800 bg-dark-800/90 p-5 sm:p-6">

@@ -197,8 +197,8 @@ class BotBridge
                 'msg' => $health['message'] ?? '',
             ]);
 
-            $launcher = $root . 'run_backend_headless.bat';
-            $backend = $root . 'backend_gui.py';
+            $launcher = $root . 'run_headless.bat';
+            $backend = $root . 'backend.py';
             if (!is_file($launcher) || !is_file($backend)) {
                 return ['success' => false, 'message' => 'Launcher headless atau backend Python tidak ditemukan di folder web.'];
             }

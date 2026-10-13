@@ -49,6 +49,19 @@
 ## Dokumentasi
 - 24 file di `docs/` + `QUICKSTART.md` + `DEBUG_PROFILE_PAGE.md` diganti dengan `README.md` dan `docs/API.md` (dibuat dari `Routes.php`).
 
+## Penamaan file (lebih umum)
+| Lama | Baru |
+|---|---|
+| `backend_gui.py` | `backend.py` |
+| `run_backend_gui.bat` | `run_gui.bat` |
+| `run_backend_headless.bat` | `run_headless.bat` |
+| `stop_all_bayzbot.bat` | `stop_all.bat` |
+
+- Launcher kini menjalankan Python dengan path lengkap (`python -u "%~dp0backend.py"`), dan skrip
+  stop (`stop_all.bat` serta tombol Stop di Settings) hanya mencocokkan skrip di folder proyek ini,
+  sehingga `backend.py` milik proyek lain tidak ikut dihentikan. Nama lama masih dikenali.
+- `gui_config.json` tidak diubah.
+
 ## Belum ditangani
 - Token Dolphin/Telegram masih plaintext di tabel `settings`.
 - Belum ada kepemilikan data per user; `/users` dan `/log` masih stub.
