@@ -319,6 +319,58 @@
             </div>
         </div>
 
+    <!-- Stats Modal -->
+    <div id="statsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
+        <div id="statsModalContent" class="bg-dark-800 border border-gray-700/80 rounded-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto shadow-2xl transform transition-all scale-95 opacity-0 duration-200">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-dark-900/50 sticky top-0 z-10">
+                <h3 id="statsModalTitle" class="text-base font-semibold text-white flex items-center gap-2 min-w-0">
+                    <i class="bi bi-graph-up text-cyan-400"></i> <span id="statsTitleText" class="truncate">Stats</span>
+                </h3>
+                <button type="button" onclick="closeStatsModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-700 transition-colors" aria-label="Close stats">
+                    <i class="bi bi-x-lg text-sm"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-5">
+                <div id="statsSummary" class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm"></div>
+
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="inline-flex rounded-xl border border-gray-700 overflow-hidden" role="group" aria-label="Metric">
+                        <button type="button" id="statsMetricPlays" onclick="setStatsMetric('plays')" class="px-3 py-2 text-xs font-semibold transition-colors">Total Putar</button>
+                        <button type="button" id="statsMetricRevenue" onclick="setStatsMetric('revenue')" class="px-3 py-2 text-xs font-semibold transition-colors border-l border-gray-700">Est. Revenue</button>
+                    </div>
+                    <div class="inline-flex rounded-xl border border-gray-700 overflow-hidden" role="group" aria-label="Group">
+                        <button type="button" id="statsGroupDay" onclick="setStatsGroup('day')" class="px-3 py-2 text-xs font-semibold transition-colors">Harian</button>
+                        <button type="button" id="statsGroupMonth" onclick="setStatsGroup('month')" class="px-3 py-2 text-xs font-semibold transition-colors border-l border-gray-700">Bulanan</button>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-end gap-3">
+                    <label class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Dari
+                        <input type="date" id="statsStart" onchange="loadStatsChart()" class="mt-1 block bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500" style="color-scheme: dark;">
+                    </label>
+                    <label class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Sampai
+                        <input type="date" id="statsEnd" onchange="loadStatsChart()" class="mt-1 block bg-dark-900 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-cyan-500" style="color-scheme: dark;">
+                    </label>
+                    <div class="flex flex-wrap gap-2">
+                        <button type="button" onclick="applyStatsPreset('7d')" class="px-3 py-2 rounded-lg bg-dark-900 border border-gray-700 text-xs text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">7 hari</button>
+                        <button type="button" onclick="applyStatsPreset('30d')" class="px-3 py-2 rounded-lg bg-dark-900 border border-gray-700 text-xs text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">30 hari</button>
+                        <button type="button" onclick="applyStatsPreset('thisMonth')" class="px-3 py-2 rounded-lg bg-dark-900 border border-gray-700 text-xs text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">Bulan ini</button>
+                        <button type="button" onclick="applyStatsPreset('6m')" class="px-3 py-2 rounded-lg bg-dark-900 border border-gray-700 text-xs text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 transition-colors">6 bulan</button>
+                    </div>
+                </div>
+
+                <div class="rounded-xl bg-dark-900/70 border border-gray-800 p-4">
+                    <div class="flex items-baseline justify-between gap-3 mb-2">
+                        <p id="statsChartTitle" class="text-sm font-semibold text-white"></p>
+                        <p id="statsChartTotal" class="text-sm font-semibold text-cyan-300"></p>
+                    </div>
+                    <div id="statsChart" class="w-full" style="min-height: 260px;" aria-live="polite"></div>
+                    <p id="statsChartNote" class="mt-2 text-xs text-gray-500"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const SwalDefault = Swal.mixin({
             background: '#111827',
@@ -353,6 +405,7 @@
         let lastBridgeWarning = '';
         let lastStreamLoadError = '';
         let profileIdsWithStreams = new Set();
+        let lastStreams = [];
         const busyStreamActions = new Set();
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -382,6 +435,7 @@
                     return data;
                 })
                 .then(data => {
+                    lastStreams = data.data;
                     renderStreams(data.data);
                     updateStats(data.data);
                             updateRevenueEstimation(data.data);
@@ -414,6 +468,8 @@
                             if (data.success && data.data) {
                                 window.revenueRates = data.data;
                                 renderRevenueSettings(data.data);
+                                // Hitung ulang segera setelah rate tersedia (agar tidak menunggu refresh 5 detik)
+                                if (lastStreams.length) updateRevenueEstimation(lastStreams);
                             }
                         })
                         .catch(() => {});
@@ -442,18 +498,27 @@
                     const rateMap = {};
                     rates.forEach(r => { rateMap[r.country.toUpperCase()] = parseFloat(r.rate) || 0; });
             
+                    // Status aktif yang dipakai backend: 'running' (playing/active = nama lama)
+                    const isActiveStatus = status => ['running', 'playing', 'active'].includes(status);
+                    // Country tidak diketahui -> otomatis ke ID (Indonesia) jika rate ID ada di data revenue
+                    const isUnknownCountry = value => ['', 'UNKNOWN', 'N/A', 'NA', 'NONE', 'NULL', '-'].includes(value);
+                    const fallbackCountry = Object.prototype.hasOwnProperty.call(rateMap, 'ID') ? 'ID' : 'UNKNOWN';
+
                     const totalStreams = streams.length;
-                    const activeStreams = streams.filter(s => s.status === 'playing' || s.status === 'active').length;
+                    const activeStreams = streams.filter(s => isActiveStatus(s.status)).length;
             
                     // Group by country (from proxy)
                     const countryStats = {};
                     streams.forEach(stream => {
-                        const country = (stream.proxy_country || 'UNKNOWN').toUpperCase();
+                        let country = String(stream.proxy_country || '').trim().toUpperCase();
+                        const wasUnknown = isUnknownCountry(country);
+                        if (wasUnknown) country = fallbackCountry;
                         if (!countryStats[country]) {
-                            countryStats[country] = { total: 0, active: 0 };
+                            countryStats[country] = { total: 0, active: 0, assumed: 0 };
                         }
                         countryStats[country].total++;
-                        if (stream.status === 'playing' || stream.status === 'active') {
+                        if (wasUnknown && country === 'ID') countryStats[country].assumed++;
+                        if (isActiveStatus(stream.status)) {
                             countryStats[country].active++;
                         }
                     });
@@ -470,7 +535,7 @@
                         const tr = document.createElement('tr');
                         tr.className = 'border-b border-gray-800';
                         tr.innerHTML = `
-                            <td class="py-2">${country}</td>
+                            <td class="py-2">${escapeHtml(country)}${stats.assumed ? ` <span class="text-[10px] text-gray-500" title="${stats.assumed} stream tanpa data negara dikaitkan ke ID (Indonesia)">(${stats.assumed} unknown)</span>` : ''}</td>
                             <td class="py-2 text-right">$${rate.toLocaleString()}</td>
                             <td class="py-2 text-right">${stats.active} / ${stats.total}</td>
                             <td class="py-2 text-right text-amber-400 font-medium">$${estRevenue.toLocaleString()}</td>
@@ -605,7 +670,8 @@
                 const active = ['starting', 'running', 'paused'].includes(stream.status);
                 const busy = busyStreamActions.has(streamId);
                 const canPlay = Boolean(stream.profile_id && (stream.playlist_id || active));
-                const playLabel = stream.status === 'paused' ? 'Resume' : 'Play';
+                const isPlaying = ['starting', 'running'].includes(stream.status);
+                const isPaused = stream.status === 'paused';
                 const currentSong = ['YouTube Music', 'YouTube'].includes(stream.current_song) ? '' : stream.current_song;
 
                 html += `
@@ -649,12 +715,14 @@
                             ${stream.automation_message ? `<div class="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 text-sm text-rose-300" role="status"><i class="bi bi-exclamation-triangle mr-2"></i>${escapeHtml(stream.automation_message)}</div>` : ''}
                         </div>
                         <div class="flex flex-wrap items-center gap-2 border-t border-gray-800 bg-dark-900/30 px-5 py-4 sm:px-6">
-                            ${active ? `
-                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'stop')" ${busy ? 'disabled' : ''}><i class="bi bi-stop-fill"></i> Stop</button>
-                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'pause')" ${busy ? 'disabled' : ''}><i class="bi bi-pause-fill"></i> ${stream.status === 'paused' ? 'Resume' : 'Pause'}</button>
+                            ${isPlaying ? `
+                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'pause')" ${busy ? 'disabled' : ''} title="Pause playback"><i class="bi bi-pause-fill"></i> Pause</button>
                             ` : `
-                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'play')" ${!canPlay || busy ? 'disabled' : ''} title="${canPlay ? 'Start or resume playlist' : 'Assign a profile and playlist first'}"><i class="bi bi-play-fill"></i> Play</button>
+                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'play')" ${!canPlay || busy ? 'disabled' : ''} title="${canPlay ? (isPaused ? 'Resume playback' : 'Start playlist') : 'Assign a profile and playlist first'}"><i class="bi bi-play-fill"></i> Play</button>
                             `}
+                            ${active ? `
+                                <button class="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'stop')" ${busy ? 'disabled' : ''} title="Stop playback"><i class="bi bi-stop-fill"></i> Stop</button>
+                            ` : ''}
                             <button class="inline-flex items-center justify-center rounded-lg bg-dark-800 border border-gray-700 w-9 h-9 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'previous')" ${!active || busy ? 'disabled' : ''} title="Previous track" aria-label="Previous track"><i class="bi bi-skip-backward-fill"></i></button>
                             <button class="inline-flex items-center justify-center rounded-lg bg-dark-800 border border-gray-700 w-9 h-9 text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'next')" ${!active || busy ? 'disabled' : ''} title="Next track" aria-label="Next track"><i class="bi bi-skip-forward-fill"></i></button>
                             <button class="inline-flex items-center gap-1.5 rounded-lg bg-dark-800 border border-gray-700 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-cyan-500/40 hover:text-cyan-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onclick="streamAction(${streamId}, 'restart')" ${!active || busy ? 'disabled' : ''} title="Restart playlist"><i class="bi bi-arrow-counterclockwise"></i> Restart</button>
@@ -691,8 +759,9 @@
                     .catch(() => {
                         showAlert(data.message || `Playback ${action} command sent.`, 'success');
                     });
-                // Refresh streams after a short delay to let backend update status
-                setTimeout(loadStreams, 500);
+                // Refresh langsung agar tombol Play/Pause/Stop berganti, lalu sekali lagi setelah backend sinkron
+                loadStreams();
+                setTimeout(loadStreams, 700);
             } catch (error) {
                 showAlert(error.message || `Failed to ${action} playback.`, 'danger');
                 // Ensure we still try to refresh the UI in case of error
@@ -702,25 +771,254 @@
             }
         }
 
-        function viewStats(id) {
+        // ===== Stats: grafik bar total putar / estimasi revenue =====
+        const statsState = { streamId: null, metric: 'plays', group: 'day', data: null, requestSeq: 0 };
+
+        function toInputDate(date) {
+            const pad = n => String(n).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+        }
+
+        function setStatsRange(start, end) {
+            document.getElementById('statsStart').value = toInputDate(start);
+            document.getElementById('statsEnd').value = toInputDate(end);
+        }
+
+        function updateStatsToggleStyles() {
+            const on = 'bg-cyan-500/20 text-cyan-300';
+            const off = 'bg-dark-900 text-gray-400 hover:text-gray-200';
+            const set = (id, active) => {
+                document.getElementById(id).className = document.getElementById(id).className
+                    .replace(/bg-cyan-500\/20 text-cyan-300|bg-dark-900 text-gray-400 hover:text-gray-200/g, '').trim()
+                    + ' ' + (active ? on : off);
+            };
+            set('statsMetricPlays', statsState.metric === 'plays');
+            set('statsMetricRevenue', statsState.metric === 'revenue');
+            set('statsGroupDay', statsState.group === 'day');
+            set('statsGroupMonth', statsState.group === 'month');
+        }
+
+        function openStatsModal(id) {
+            statsState.streamId = Number(id);
+            statsState.metric = 'plays';
+            statsState.group = 'day';
+            statsState.data = null;
+            const today = new Date();
+            const start = new Date(today);
+            start.setDate(start.getDate() - 6);
+            setStatsRange(start, today);
+            updateStatsToggleStyles();
+            document.getElementById('statsSummary').innerHTML = '';
+            document.getElementById('statsTitleText').textContent = 'Stats';
+            document.getElementById('statsChart').innerHTML = '<p class="py-16 text-center text-sm text-gray-500">Memuat grafik...</p>';
+            document.getElementById('statsChartTitle').textContent = '';
+            document.getElementById('statsChartTotal').textContent = '';
+            document.getElementById('statsChartNote').textContent = '';
+
+            const modal = document.getElementById('statsModal');
+            const content = document.getElementById('statsModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+
             fetch(`${baseUrl}api/stream/stats/${id}`)
                 .then(res => res.json())
                 .then(data => {
-                    if (data.success) {
-                        const stats = data.data;
-                                SwalDefault.fire({
-                            title: `Stream: ${stats.stream_name}`,
-                            html: `<p class="text-left"><strong>Status:</strong> ${stats.status}</p>
-                                   <p class="text-left"><strong>Total Plays:</strong> ${stats.total_plays}</p>
-                                   <p class="text-left"><strong>Duration:</strong> ${formatTime(stats.stream_duration)}</p>
-                                   <p class="text-left"><strong>Started:</strong> ${stats.started_at || 'Not started'}</p>
-                                   <p class="text-left"><strong>Ended:</strong> ${stats.ended_at || 'Still running'}</p>`,
-                            icon: 'info',
-                            confirmButtonText: 'Close'
-                        });
+                    if (!data.success || statsState.streamId !== Number(id)) return;
+                    const stats = data.data;
+                    document.getElementById('statsTitleText').textContent = `Stats: ${stats.stream_name}`;
+                    const cell = (label, value) => `<div class="rounded-xl bg-dark-900/60 border border-gray-800 p-3"><p class="text-[11px] uppercase tracking-wider text-gray-500">${label}</p><p class="mt-1 text-sm font-semibold text-gray-100 break-words">${escapeHtml(String(value))}</p></div>`;
+                    document.getElementById('statsSummary').innerHTML =
+                        cell('Status', stats.status) +
+                        cell('Total Plays', Number(stats.total_plays || 0).toLocaleString('id-ID')) +
+                        cell('Duration', formatTime(stats.stream_duration || 0)) +
+                        cell('Started', stats.started_at || 'Not started');
+                })
+                .catch(() => {});
+            loadStatsChart();
+        }
+
+        function closeStatsModal() {
+            const modal = document.getElementById('statsModal');
+            const content = document.getElementById('statsModalContent');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            statsState.streamId = null;
+            setTimeout(() => modal.classList.add('hidden'), 200);
+        }
+
+        function viewStats(id) {
+            openStatsModal(id);
+        }
+
+        function setStatsMetric(metric) {
+            statsState.metric = metric === 'revenue' ? 'revenue' : 'plays';
+            updateStatsToggleStyles();
+            renderStatsChart();
+        }
+
+        function setStatsGroup(group) {
+            const next = group === 'month' ? 'month' : 'day';
+            if (next === statsState.group) return;
+            statsState.group = next;
+            // Rentang bawaan mengikuti mode: harian = 7 hari terakhir, bulanan = 6 bulan terakhir
+            const today = new Date();
+            if (next === 'month') {
+                setStatsRange(new Date(today.getFullYear(), today.getMonth() - 5, 1), today);
+            } else {
+                const start = new Date(today);
+                start.setDate(start.getDate() - 6);
+                setStatsRange(start, today);
+            }
+            updateStatsToggleStyles();
+            loadStatsChart();
+        }
+
+        function applyStatsPreset(preset) {
+            const today = new Date();
+            if (preset === '6m') {
+                statsState.group = 'month';
+                setStatsRange(new Date(today.getFullYear(), today.getMonth() - 5, 1), today);
+            } else {
+                statsState.group = 'day';
+                if (preset === 'thisMonth') {
+                    setStatsRange(new Date(today.getFullYear(), today.getMonth(), 1), today);
+                } else {
+                    const start = new Date(today);
+                    start.setDate(start.getDate() - (preset === '30d' ? 29 : 6));
+                    setStatsRange(start, today);
+                }
+            }
+            updateStatsToggleStyles();
+            loadStatsChart();
+        }
+
+        function loadStatsChart() {
+            if (statsState.streamId === null) return;
+            const start = document.getElementById('statsStart').value;
+            const end = document.getElementById('statsEnd').value;
+            const chart = document.getElementById('statsChart');
+            if (!start || !end) {
+                chart.innerHTML = '<p class="py-16 text-center text-sm text-gray-500">Pilih tanggal mulai dan akhir.</p>';
+                return;
+            }
+            const seq = ++statsState.requestSeq;
+            const params = new URLSearchParams({ start, end, group: statsState.group });
+            fetch(`${baseUrl}api/stream/chart/${statsState.streamId}?${params.toString()}`)
+                .then(async response => {
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok || !data.success) {
+                        throw new Error(data.message || `Gagal memuat grafik (HTTP ${response.status}).`);
                     }
+                    return data.data;
+                })
+                .then(data => {
+                    if (seq !== statsState.requestSeq) return; // respons lama diabaikan
+                    statsState.data = data;
+                    renderStatsChart();
+                })
+                .catch(error => {
+                    if (seq !== statsState.requestSeq) return;
+                    statsState.data = null;
+                    chart.innerHTML = `<p class="py-16 text-center text-sm text-rose-300">${escapeHtml(error.message || 'Gagal memuat grafik.')}</p>`;
+                    document.getElementById('statsChartTotal').textContent = '';
+                    document.getElementById('statsChartNote').textContent = '';
                 });
         }
+
+        function formatStatsLabel(key, group) {
+            const parts = String(key).split('-').map(Number);
+            if (group === 'month') {
+                return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+            }
+            return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+        }
+
+        function formatStatsValue(value, metric) {
+            if (metric === 'revenue') {
+                return '$' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+            }
+            return Number(value).toLocaleString('id-ID');
+        }
+
+        function niceStatsMax(value) {
+            if (value <= 0) return 1;
+            const exp = Math.pow(10, Math.floor(Math.log10(value)));
+            const frac = value / exp;
+            const nice = frac <= 1 ? 1 : frac <= 2 ? 2 : frac <= 5 ? 5 : 10;
+            return nice * exp;
+        }
+
+        function renderBarChartSvg(buckets, metric, group) {
+            const W = 720, H = 280, left = 56, right = 12, top = 18, bottom = 44;
+            const innerW = W - left - right, innerH = H - top - bottom;
+            const values = buckets.map(b => Number(b[metric]) || 0);
+            const max = niceStatsMax(Math.max(...values, 0));
+            const n = buckets.length;
+            const slot = innerW / n;
+            const barW = Math.max(2, Math.min(48, slot * 0.7));
+            const labelEvery = Math.ceil(n / 12);
+            const showValues = n <= 12;
+            const fill = metric === 'revenue' ? '#f59e0b' : '#22d3ee';
+            let svg = `<svg viewBox="0 0 ${W} ${H}" class="w-full h-auto" role="img" aria-label="Grafik bar">`;
+            for (let i = 0; i <= 4; i++) {
+                const y = top + innerH - (innerH * i / 4);
+                svg += `<line x1="${left}" y1="${y}" x2="${W - right}" y2="${y}" stroke="#374151" stroke-width="1" ${i === 0 ? '' : 'stroke-dasharray="3 4"'}/>`;
+                svg += `<text x="${left - 8}" y="${y + 4}" text-anchor="end" font-size="11" fill="#9ca3af">${escapeHtml(formatStatsValue(max * i / 4, metric))}</text>`;
+            }
+            buckets.forEach((b, i) => {
+                const v = values[i];
+                const h = max > 0 ? (v / max) * innerH : 0;
+                const x = left + slot * i + (slot - barW) / 2;
+                const y = top + innerH - h;
+                const label = formatStatsLabel(b.key, group);
+                svg += `<g><title>${escapeHtml(label)}: ${escapeHtml(formatStatsValue(v, metric))}</title>`;
+                svg += `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${barW.toFixed(2)}" height="${Math.max(h, v > 0 ? 1 : 0).toFixed(2)}" rx="3" fill="${fill}" opacity="0.9"/>`;
+                if (showValues && v > 0) {
+                    svg += `<text x="${(x + barW / 2).toFixed(2)}" y="${(y - 4).toFixed(2)}" text-anchor="middle" font-size="10" fill="#e5e7eb">${escapeHtml(formatStatsValue(v, metric))}</text>`;
+                }
+                if (i % labelEvery === 0) {
+                    svg += `<text x="${(left + slot * i + slot / 2).toFixed(2)}" y="${H - bottom + 16}" text-anchor="middle" font-size="11" fill="#9ca3af">${escapeHtml(label)}</text>`;
+                }
+                svg += `</g>`;
+            });
+            return svg + '</svg>';
+        }
+
+        function renderStatsChart() {
+            const data = statsState.data;
+            const chart = document.getElementById('statsChart');
+            if (!data) return;
+            const metric = statsState.metric;
+            const title = metric === 'revenue' ? 'Estimasi Revenue' : 'Total Putar';
+            const unit = data.group === 'month' ? 'per bulan' : 'per hari';
+            document.getElementById('statsChartTitle').textContent = `${title} ${unit}`;
+            const total = metric === 'revenue' ? data.total_revenue : data.total_plays;
+            document.getElementById('statsChartTotal').textContent = `Total: ${formatStatsValue(total, metric)}`;
+
+            if (!data.buckets.length) {
+                chart.innerHTML = '<p class="py-16 text-center text-sm text-gray-500">Tidak ada data.</p>';
+            } else {
+                chart.innerHTML = renderBarChartSvg(data.buckets, metric, data.group);
+            }
+
+            let note = `Rentang ${data.start} s/d ${data.end} (zona waktu ${data.timezone}).`;
+            if (metric === 'revenue') {
+                note += data.has_rate
+                    ? ` Revenue = total putar × rate ${data.rate_country} ($${Number(data.rate).toLocaleString('en-US', { maximumFractionDigits: 4 })}); negara stream belum diketahui, dikaitkan ke ID.`
+                    : ` Belum ada rate untuk ${data.rate_country} di Settings > Revenue Estimation, jadi revenue tampil $0.`;
+            }
+            if (data.total_plays === 0) note += ' Belum ada putaran tercatat pada rentang ini.';
+            document.getElementById('statsChartNote').textContent = note;
+        }
+
+        document.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && !document.getElementById('statsModal').classList.contains('hidden')) {
+                closeStatsModal();
+            }
+        });
 
         function deleteStream(id) {
                     SwalDefault.fire({

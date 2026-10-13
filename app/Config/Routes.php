@@ -107,6 +107,7 @@ $routes->group('', ['filter' => 'auth'], static function (RouteCollection $route
     $routes->get('api/stream/active', 'Stream::getActive');
     $routes->get('api/stream/profile/(:num)', 'Stream::getByProfile/$1');
     $routes->get('api/stream/stats/(:num)', 'Stream::getStats/$1');
+    $routes->get('api/stream/chart/(:num)', 'Stream::getChart/$1');
     $routes->get('api/stream/(:num)', 'Stream::getById/$1');
     $routes->post('api/stream/create', 'Stream::create');
     $routes->post('api/stream/update/(:num)', 'Stream::update/$1');

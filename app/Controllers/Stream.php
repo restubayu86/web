@@ -8,6 +8,7 @@ use App\Models\ChromiumProfileModel;
 use App\Models\PlaylistModel;
 use App\Models\SettingsModel;
 use App\Models\StreamModel;
+use App\Models\StreamPlayStatModel;
 
 class Stream extends BaseController
 {
@@ -263,9 +264,13 @@ class Stream extends BaseController
                     $changes[$field] = $value;
                 }
             }
-            if ($changes !== [] && !$this->streamModel->update((int) $stream['id'], $changes)) {
+            $saved = $changes === [] || $this->streamModel->update((int) $stream['id'], $changes);
+            if (!$saved) {
                 // Log warning but continue with stale data
                 log_message('warning', 'Gagal memperbarui data stream ' . $stream['id'] . ' dari status BayzBot.');
+            }
+            if ($saved && isset($changes['total_plays'])) {
+                $this->recordPlayDelta((int) $stream['id'], (int) $stream['total_plays'], (int) $changes['total_plays']);
             }
             if ($changes !== []) {
                 $stream = $this->streamModel->find((int) $stream['id']) ?? $stream;
@@ -539,6 +544,176 @@ class Stream extends BaseController
         ]);
     }
 
+    /**
+     * Zona waktu untuk batas hari/bulan pada grafik Stats. Default Asia/Jakarta;
+     * bisa diganti lewat setting `stats_timezone` (mis. UTC).
+     */
+    private function statsTimezone(): \DateTimeZone
+    {
+        $name = trim((string) (new SettingsModel())->getSetting('stats_timezone'));
+        try {
+            return new \DateTimeZone($name !== '' ? $name : 'Asia/Jakarta');
+        } catch (\Throwable $e) {
+            return new \DateTimeZone('Asia/Jakarta');
+        }
+    }
+
+    /**
+     * Catat pertambahan putar ke tabel harian. Dipanggil hanya setelah total_plays
+     * baru tersimpan, sehingga polling berulang tidak menghitung dua kali.
+     */
+    private function recordPlayDelta(int $streamId, int $oldTotal, int $newTotal): void
+    {
+        $delta = $newTotal - $oldTotal;
+        if ($delta <= 0) {
+            return;
+        }
+
+        try {
+            $today = (new \DateTimeImmutable('now', $this->statsTimezone()))->format('Y-m-d');
+            (new StreamPlayStatModel())->addPlays($streamId, $today, $delta);
+        } catch (\Throwable $e) {
+            log_message('warning', 'Gagal mencatat statistik putar stream {id}: {msg}', [
+                'id'  => $streamId,
+                'msg' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Peta kode negara (uppercase) => rate dari setting revenue_rates.
+     *
+     * @return array<string,float>
+     */
+    private function revenueRateMap(): array
+    {
+        $rates = json_decode((string) (new SettingsModel())->getSetting('revenue_rates'), true);
+        $map   = [];
+        foreach (is_array($rates) ? $rates : [] as $row) {
+            $country = strtoupper(trim((string) ($row['country'] ?? '')));
+            if ($country !== '') {
+                $map[$country] = (float) ($row['rate'] ?? 0);
+            }
+        }
+
+        return $map;
+    }
+
+    private function parseStatsDate($value, \DateTimeZone $tz): ?\DateTimeImmutable
+    {
+        if (!is_string($value) || $value === '') {
+            return null;
+        }
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d', $value, $tz);
+
+        return ($date && $date->format('Y-m-d') === $value) ? $date : null;
+    }
+
+    /**
+     * Data grafik bar per stream: total putar dan estimasi revenue per hari/bulan.
+     * Query: start=Y-m-d, end=Y-m-d, group=day|month.
+     */
+    public function getChart($id)
+    {
+        $stream = $this->streamModel->find($id);
+        if (!$stream) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Stream not found',
+            ])->setStatusCode(404);
+        }
+
+        $tz     = $this->statsTimezone();
+        $today  = new \DateTimeImmutable('today', $tz);
+        $group  = $this->request->getGet('group') === 'month' ? 'month' : 'day';
+        $start  = $this->parseStatsDate($this->request->getGet('start'), $tz)
+            ?? ($group === 'month' ? $today->modify('first day of this month')->modify('-5 months') : $today->modify('-6 days'));
+        $end    = $this->parseStatsDate($this->request->getGet('end'), $tz) ?? $today;
+
+        if ($start > $end) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Tanggal mulai tidak boleh setelah tanggal akhir.',
+            ])->setStatusCode(422);
+        }
+
+        // Bulanan: perluas ke batas bulan penuh supaya bulan di tepi tidak terpotong.
+        if ($group === 'month') {
+            $start = $start->modify('first day of this month');
+            $end   = $end->modify('last day of this month');
+            $months = ((int) $end->format('Y') - (int) $start->format('Y')) * 12
+                + ((int) $end->format('n') - (int) $start->format('n')) + 1;
+            if ($months > 36) {
+                return $this->response->setJSON([
+                    'success' => false,
+                    'message' => 'Rentang bulanan maksimal 36 bulan.',
+                ])->setStatusCode(422);
+            }
+        } elseif ($start->diff($end)->days + 1 > 366) {
+            return $this->response->setJSON([
+                'success' => false,
+                'message' => 'Rentang harian maksimal 366 hari.',
+            ])->setStatusCode(422);
+        }
+
+        $buckets = [];
+        if ($group === 'month') {
+            for ($cursor = $start; $cursor <= $end; $cursor = $cursor->modify('+1 month')) {
+                $buckets[$cursor->format('Y-m')] = 0;
+            }
+        } else {
+            for ($cursor = $start; $cursor <= $end; $cursor = $cursor->modify('+1 day')) {
+                $buckets[$cursor->format('Y-m-d')] = 0;
+            }
+        }
+
+        $totals = (new StreamPlayStatModel())->totalsByDate((int) $id, $start->format('Y-m-d'), $end->format('Y-m-d'));
+        foreach ($totals as $date => $plays) {
+            $key = $group === 'month' ? substr($date, 0, 7) : $date;
+            if (array_key_exists($key, $buckets)) {
+                $buckets[$key] += $plays;
+            }
+        }
+
+        // Negara stream belum tersimpan di database; yang unknown dikaitkan ke ID (Indonesia).
+        $country = strtoupper(trim((string) ($stream['proxy_country'] ?? '')));
+        if ($country === '' || $country === 'UNKNOWN') {
+            $country = 'ID';
+        }
+        $rateMap = $this->revenueRateMap();
+        $hasRate = array_key_exists($country, $rateMap);
+        $rate    = $hasRate ? $rateMap[$country] : 0.0;
+
+        $rows = [];
+        $totalPlays = 0;
+        foreach ($buckets as $key => $plays) {
+            $totalPlays += $plays;
+            $rows[] = [
+                'key'     => $key,
+                'plays'   => $plays,
+                'revenue' => round($plays * $rate, 4),
+            ];
+        }
+
+        return $this->response->setJSON([
+            'success' => true,
+            'data'    => [
+                'stream_id'     => (int) $stream['id'],
+                'stream_name'   => $stream['stream_name'],
+                'group'         => $group,
+                'start'         => $start->format('Y-m-d'),
+                'end'           => $end->format('Y-m-d'),
+                'timezone'      => $tz->getName(),
+                'rate_country'  => $country,
+                'rate'          => $rate,
+                'has_rate'      => $hasRate,
+                'total_plays'   => $totalPlays,
+                'total_revenue' => round($totalPlays * $rate, 4),
+                'buckets'       => $rows,
+            ],
+        ]);
+    }
+
     private function withDuration(array $stream): array
     {
         $stream['stream_duration'] = $this->streamModel->calculateDuration((int) $stream['id']);
@@ -699,8 +874,12 @@ class Stream extends BaseController
                     $changes[$field] = $value;
                 }
             }
-            if ($changes !== [] && !$this->streamModel->update((int) $stream['id'], $changes)) {
+            $saved = $changes === [] || $this->streamModel->update((int) $stream['id'], $changes);
+            if (!$saved) {
                 $warnings[] = 'Gagal memperbarui data stream ' . $stream['id'] . ' dari status BayzBot.';
+            }
+            if ($saved && isset($changes['total_plays'])) {
+                $this->recordPlayDelta((int) $stream['id'], (int) $stream['total_plays'], (int) $changes['total_plays']);
             }
             if ($changes !== []) {
                 $stream = $this->streamModel->find((int) $stream['id']) ?? $stream;
