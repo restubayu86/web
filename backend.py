@@ -123,15 +123,17 @@ def is_port_available(port: int, host: str = "localhost") -> bool:
     except Exception:
         return True
 
-RAM_ALERT_THRESHOLD = 85.0     # % — notifikasi Telegram PAKSA kalau lewat ini
+DEFAULT_RAM_ALERT_THRESHOLD = 85.0  # % — bawaan; nilai aktif mengikuti halaman Settings web (get_ram_threshold)
 RAM_CHECK_INTERVAL_SECONDS = 20
 MAX_WEB_RECOVERY_ATTEMPTS = 3
+AD_STUCK_WARNING_SECONDS = 90   # iklan yang berjalan lebih lama dari ini dilaporkan Watchdog sebagai peringatan
 TELEGRAM_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bayzbot-telegram")
 
 DEFAULT_CONFIG = {
     "total_loop": -1,               # -1 = infinity
     "watchdog_interval": 30,        # detik
     "ad_skip_delay_seconds": 0,     # 0 = skip iklan langsung begitu terlihat
+    "ram_threshold_percent": DEFAULT_RAM_ALERT_THRESHOLD,  # disinkronkan dari halaman Settings web
     "ws_port": 8765,                # ganti kalau jalankan >1 backend sekaligus di 1 PC
     "http_api_port": HTTP_API_PORT,
     "http_api_token": "",
@@ -177,6 +179,33 @@ def save_config(cfg: dict) -> None:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
     except Exception as e:
         print(f"Gagal menyimpan config: {e}")
+
+
+def get_ram_threshold() -> float:
+    """Ambang RAM aktif (persen), mengikuti yang diatur di halaman Settings web."""
+    try:
+        value = float(state.config.get("ram_threshold_percent", DEFAULT_RAM_ALERT_THRESHOLD))
+    except (TypeError, ValueError):
+        return DEFAULT_RAM_ALERT_THRESHOLD
+    return value if 1.0 <= value <= 100.0 else DEFAULT_RAM_ALERT_THRESHOLD
+
+
+def apply_runtime_settings(settings: dict) -> dict:
+    """Terapkan pengaturan dari web yang berlaku langsung (tanpa memulai playlist)."""
+    applied: dict = {}
+    if "ram_threshold_percent" in settings:
+        try:
+            value = float(settings["ram_threshold_percent"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("ram_threshold_percent harus berupa angka.") from exc
+        if not 1.0 <= value <= 100.0:
+            raise ValueError("ram_threshold_percent harus 1 sampai 100.")
+        if value != get_ram_threshold():
+            state.config["ram_threshold_percent"] = value
+            save_config(state.config)
+            state.emit("log", {"text": f"Threshold RAM diubah menjadi {value:g}% (dari halaman Settings web)."})
+        applied["ram_threshold_percent"] = value
+    return applied
 
 # ---------------------------------------------------------------------------
 # IP Geolocation & Country Flags
@@ -283,6 +312,66 @@ def notify_telegram(text: str, force: bool = False) -> None:
     future.add_done_callback(report_failure)
 
 
+TELEGRAM_CONTROL_ACTIONS = {
+    "/stopstream": "stop", "/stop": "stop", "/pause": "pause", "/play": "play",
+    "/resume": "play", "/next": "next", "/prev": "previous", "/previous": "previous",
+    "/restart": "restart",
+}
+TELEGRAM_ACTION_LABELS = {
+    "stop": "dihentikan", "pause": "dijeda", "play": "dilanjutkan",
+    "next": "pindah ke lagu berikutnya", "previous": "kembali ke lagu sebelumnya",
+    "restart": "dimulai ulang",
+}
+
+
+def telegram_control_streams(action: str, command: str, profile_arg: str | None = None) -> str:
+    """Jalankan perintah Telegram lewat jalur yang sama dengan tombol di halaman web:
+    perintah dikirim ke ekstensi dan status sesi diperbarui, sehingga halaman web
+    (yang memantau status sesi tiap beberapa detik) ikut berubah."""
+    label = TELEGRAM_ACTION_LABELS[action]
+    if profile_arg is not None and not profile_arg.isdigit():
+        return f"Format: {command} [id_profil_dolphin]"
+
+    gui_stopped = False
+    if action == "stop" and profile_arg is None and state.is_running:
+        state.is_running = False
+        gui_stopped = True
+
+    targets = [
+        pid for pid, sess in list(state.web_sessions.items())
+        if sess.get("active") and (profile_arg is None or pid == profile_arg)
+    ]
+    if not targets and not gui_stopped:
+        reply = (f"Tidak ada stream aktif untuk profil {profile_arg}." if profile_arg
+                 else "Tidak ada stream aktif.")
+        state.emit("log", {"text": f"Telegram: {command} diterima - {reply}"})
+        return reply
+
+    done, failed = [], []
+    loop = state.loop
+    for pid in targets:
+        if loop is None:
+            failed.append(f"{pid}: backend belum siap")
+            continue
+        try:
+            future = asyncio.run_coroutine_threadsafe(_control_web_playlist(pid, action), loop)
+            future.result(timeout=30)
+            done.append(pid)
+        except Exception as exc:  # RuntimeError dari ekstensi, TimeoutError, dll
+            failed.append(f"{pid}: {exc}")
+
+    parts = []
+    if gui_stopped:
+        parts.append("Stream GUI dihentikan.")
+    if done:
+        parts.append(f"Stream profil {', '.join(done)} {label}.")
+    if failed:
+        parts.append("Gagal: " + "; ".join(failed))
+    reply = " ".join(parts)
+    state.emit("log", {"text": f"Telegram: {command} diterima - {reply}"})
+    return reply
+
+
 def telegram_polling():
     """Thread worker untuk polling perintah Telegram (long-polling getUpdates)."""
     offset = 0
@@ -315,7 +404,9 @@ def telegram_polling():
                     sender_chat_id = str((msg.get("chat") or {}).get("id", "")).strip()
                     if sender_chat_id != chat_id_cfg:
                         continue
-                    cmd = text.split()[0].lower().split("@")[0]
+                    words = text.split()
+                    cmd = words[0].lower().split("@")[0]
+                    arg = words[1] if len(words) > 1 else None
                     response = None
                     if cmd == "/status":
                         ram = get_ram_percent()
@@ -330,23 +421,20 @@ def telegram_polling():
                             f"Web Sessions Active: {web_active}\n"
                             f"Instances Connected: {clients}"
                         )
+                        for pid, sess in list(state.web_sessions.items()):
+                            if not sess.get("active"):
+                                continue
+                            sess_state = "dijeda" if sess.get("paused") else ("memulai" if sess.get("starting") else "memutar")
+                            response += (
+                                f"\n- Profil {pid}: {sess_state}; {sess.get('current_song') or '-'}; "
+                                f"iklan: {describe_ad_status(sess)}"
+                            )
                     elif cmd == "/ram":
                         ram = get_ram_percent()
                         ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
                         response = f"RAM Usage: {ram_str}"
-                    elif cmd in ("/stopstream", "/stop"):
-                        stopped = 0
-                        if state.is_running:
-                            state.is_running = False
-                            stopped += 1
-                        for sid, sess in list(state.web_sessions.items()):
-                            if sess.get("active"):
-                                sess["active"] = False
-                                stopped += 1
-                        if stopped:
-                            response = f"Stream dihentikan ({stopped} sesi)."
-                        else:
-                            response = "Tidak ada stream aktif."
+                    elif cmd in TELEGRAM_CONTROL_ACTIONS:
+                        response = telegram_control_streams(TELEGRAM_CONTROL_ACTIONS[cmd], cmd, arg)
                     elif cmd == "/ping":
                         response = "Pong! BayzBot aktif."
                     elif cmd == "/playlist":
@@ -368,7 +456,11 @@ def telegram_polling():
                             "Perintah tersedia:\n"
                             "/status - Status bot & stream\n"
                             "/ram - Status RAM\n"
-                            "/stopstream /stop - Hentikan semua stream\n"
+                            "/stopstream /stop [id_profil] - Hentikan stream\n"
+                            "/pause [id_profil] - Jeda stream\n"
+                            "/play /resume [id_profil] - Lanjutkan stream\n"
+                            "/next /prev [id_profil] - Lagu berikutnya / sebelumnya\n"
+                            "/restart [id_profil] - Mulai ulang playlist\n"
                             "/playlist - Info playlist\n"
                             "/loops - Info loop count\n"
                             "/clients - Daftar instance terhubung\n"
@@ -802,6 +894,14 @@ async def _start_web_playlist(
         "paused": False,
         "starting": True,
         "active": True,
+        "ads_detected": 0,
+        "ads_skipped": 0,
+        "ads_fast_forwarded": 0,
+        "ad_active": False,
+        "ad_index": 0,
+        "ad_kind": None,
+        "ad_phase": None,
+        "ad_started_at": None,
     }
     state.web_sessions[profile_id] = session
     state.emit("log", {
@@ -936,7 +1036,8 @@ async def _handle_web_playlist_completed(profile_id: str):
         })
 
 
-AD_EVENTS = {"adDetected", "adSkipClicked", "adUnskippable", "adEnded"}
+AD_EVENTS = {"adDetected", "adWaiting", "adSkipClicked", "adFastForward", "adUnskippable", "adEnded"}
+AD_KIND_LABELS = {"short": "pendek", "long": "panjang"}
 
 
 def _ad_seconds(ms) -> str:
@@ -946,43 +1047,90 @@ def _ad_seconds(ms) -> str:
         return "?"
 
 
+def describe_ad_status(holder: dict) -> str:
+    """Ringkasan status iklan satu sesi/instance (dipakai Watchdog dan /status Telegram)."""
+    totals = (
+        f"total {int(holder.get('ads_detected', 0))}, "
+        f"di-skip {int(holder.get('ads_skipped', 0))}, "
+        f"dipercepat {int(holder.get('ads_fast_forwarded', 0))}"
+    )
+    if holder.get("ad_active"):
+        started = holder.get("ad_started_at")
+        elapsed = int(time.time() - started) if started else 0
+        kind = AD_KIND_LABELS.get(holder.get("ad_kind"), "durasi belum diketahui")
+        phase = holder.get("ad_phase") or "terdeteksi"
+        return f"sedang iklan ke-{int(holder.get('ad_index', 0))} ({kind}) - {phase}, {elapsed} detik ({totals})"
+    return f"tidak ada iklan ({totals})"
+
+
 def log_ad_event(ws, msg) -> None:
-    """Tulis status skip iklan dari ekstensi ke LOG (satu baris per perubahan status)."""
+    """Tulis status membaca/skip iklan dari ekstensi ke LOG, dan simpan statusnya
+    di sesi agar ikut tampil di laporan Watchdog."""
     meta = state.clients.get(ws) or {}
     profile_id = meta.get("browser_profile_id")
     session = state.web_sessions.get(profile_id) if profile_id else None
     if session is not None:
         who = f"Stream profil Dolphin {profile_id}"
-        counters = session
+        holder = session
     else:
         who = f"Instance {meta.get('label') or meta.get('instance_id') or 'tidak dikenal'}"
-        counters = meta
+        holder = meta
 
     ev = msg.get("event")
+    try:
+        index = int(msg.get("index") or holder.get("ad_index") or 1)
+    except (TypeError, ValueError):
+        index = 1
+    kind_key = msg.get("kind") if msg.get("kind") in AD_KIND_LABELS else None
+    kind = AD_KIND_LABELS.get(kind_key, "durasi belum diketahui")
+    duration = msg.get("durationSec")
+    duration_text = f", {float(duration):.1f} detik" if isinstance(duration, (int, float)) and duration > 0 else ""
+    label = f"iklan ke-{index} ({kind}{duration_text})"
+
     if ev == "adDetected":
-        counters["ads_detected"] = int(counters.get("ads_detected", 0)) + 1
+        holder["ads_detected"] = int(holder.get("ads_detected", 0)) + 1
+        holder.update(ad_active=True, ad_index=index, ad_kind=kind_key, ad_phase="terdeteksi", ad_started_at=time.time())
         if msg.get("skippable"):
             try:
                 delay = int(msg.get("skipDelaySeconds") or 0)
             except (TypeError, ValueError):
                 delay = 0
             when = f"skip otomatis setelah {delay} detik" if delay > 0 else "skip langsung"
-            text = f"iklan terdeteksi (tombol Skip tersedia, {when})."
+            text = f"{label} terdeteksi (tombol Skip tersedia, {when})."
         else:
-            text = "iklan terdeteksi (tombol Skip belum muncul)."
+            text = f"{label} terdeteksi (tombol Skip belum muncul)."
+    elif ev == "adWaiting":
+        holder["ad_phase"] = "menunggu tombol Skip"
+        try:
+            wait = float(msg.get("waitSeconds") or 0)
+        except (TypeError, ValueError):
+            wait = 0
+        text = f"{label}: menunggu tombol Skip maks. {wait:g} detik, lalu dipercepat bila tidak muncul."
     elif ev == "adSkipClicked":
-        text = f"tombol Skip iklan diklik ({_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
+        holder["ad_phase"] = "tombol Skip diklik"
+        text = f"tombol Skip {label} diklik ({_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
+    elif ev == "adFastForward":
+        holder["ads_fast_forwarded"] = int(holder.get("ads_fast_forwarded", 0)) + 1
+        holder["ad_phase"] = "dimute & dipercepat"
+        try:
+            rate = float(msg.get("rate") or 16)
+        except (TypeError, ValueError):
+            rate = 16
+        text = f"{label} tidak bisa di-skip -> dimute dan dipercepat {rate:g}x."
     elif ev == "adUnskippable":
         text = (f"iklan tidak bisa di-skip, menunggu selesai sendiri "
                 f"({_ad_seconds(msg.get('elapsedMs'))} detik berjalan).")
     elif ev == "adEnded":
         skipped = msg.get("skipped") is True
+        fast = msg.get("fastForwarded") is True
         if skipped:
-            counters["ads_skipped"] = int(counters.get("ads_skipped", 0)) + 1
-        how = "di-skip bot" if skipped else "habis sendiri"
-        text = (f"iklan selesai - {how} (durasi {_ad_seconds(msg.get('durationMs'))} detik). "
-                f"Total iklan: {int(counters.get('ads_detected', 0))}, "
-                f"di-skip: {int(counters.get('ads_skipped', 0))}.")
+            holder["ads_skipped"] = int(holder.get("ads_skipped", 0)) + 1
+        holder.update(ad_active=False, ad_phase=None, ad_started_at=None)
+        how = "di-skip bot" if skipped else ("dipercepat bot" if fast else "habis sendiri")
+        text = (f"{label} selesai - {how} (durasi {_ad_seconds(msg.get('durationMs'))} detik). "
+                f"Total iklan: {int(holder.get('ads_detected', 0))}, "
+                f"di-skip: {int(holder.get('ads_skipped', 0))}, "
+                f"dipercepat: {int(holder.get('ads_fast_forwarded', 0))}.")
     else:
         return
     state.emit("log", {"text": f"{who}: {text}"})
@@ -1261,10 +1409,20 @@ class BotAPIHandler(BaseHTTPRequestHandler):
             return
 
     def do_POST(self):
-        if self.path not in {"/api/play", "/api/stop", "/api/control"}:
+        if self.path not in {"/api/play", "/api/stop", "/api/control", "/api/settings"}:
             self._json_response(404, {"success": False, "message": "Endpoint tidak ditemukan."})
             return
         if not self._authorized():
+            return
+        if self.path == "/api/settings":
+            try:
+                applied = apply_runtime_settings(self._read_json())
+                self._json_response(200, {"success": True, "applied": applied})
+            except ValueError as exc:
+                self._json_response(422, {"success": False, "message": str(exc)})
+            except Exception as exc:
+                print(f"[HTTP API] Request settings gagal: {exc}", flush=True)
+                self._json_response(500, {"success": False, "message": "Terjadi kesalahan internal BayzBot."})
             return
         try:
             payload = self._read_json()
@@ -1339,6 +1497,8 @@ class BotAPIHandler(BaseHTTPRequestHandler):
                     "watchdog_interval": watchdog_interval,
                     "ad_skip_delay_seconds": ad_skip_delay,
                 }
+                if "ram_threshold_percent" in settings:
+                    apply_runtime_settings({"ram_threshold_percent": settings["ram_threshold_percent"]})
                 future = asyncio.run_coroutine_threadsafe(
                     _start_web_playlist(profile_id, urls, normalized_settings, normalized_tracks), state.loop
                 )
@@ -1351,9 +1511,32 @@ class BotAPIHandler(BaseHTTPRequestHandler):
             self._json_response(500, {"success": False, "message": "Terjadi kesalahan internal BayzBot."})
 
 
+def _emit_watchdog_status(profile_id: str, session: dict, now: float, condition: str) -> None:
+    """Satu baris status Watchdog per sesi tiap watchdog_interval: kondisi, lagu, umur status, iklan."""
+    interval = session["watchdog_interval"]
+    if now - session.get("last_watchdog_log_at", 0.0) < interval:
+        return
+    session["last_watchdog_log_at"] = now
+    status_age = max(0, int(now - session["last_status_at"]))
+    current_song = session.get("current_song") or "judul belum diterima"
+    level = "INFO"
+    note = ""
+    started = session.get("ad_started_at")
+    if session.get("ad_active") and started and now - started > AD_STUCK_WARNING_SECONDS:
+        level = "WARNING"
+        note = f" PERINGATAN: iklan berjalan lebih dari {AD_STUCK_WARNING_SECONDS} detik."
+    state.emit("log", {
+        "level": level,
+        "text": f"Watchdog: stream profil Dolphin {profile_id} {condition}; {current_song}; "
+                f"status diterima {status_age} detik lalu; iklan: {describe_ad_status(session)}.{note}",
+    })
+
+
 async def watchdog_loop():
     """Pantau playlist GUI dan setiap sesi stream web yang aktif."""
     already_alerted = False
+    last_gui_report = 0.0
+    state.emit("log", {"text": "Watchdog aktif: status stream dan iklan dilaporkan berkala di LOG."})
     while True:
         interval = max(5, int(state.config.get("watchdog_interval", 30)))
         await asyncio.sleep(5)
@@ -1370,10 +1553,19 @@ async def watchdog_loop():
                 )
             elif elapsed <= interval:
                 already_alerted = False
+                if time.time() - last_gui_report >= interval:
+                    last_gui_report = time.time()
+                    state.emit("log", {
+                        "text": f"Watchdog: playlist GUI normal; status diterima {elapsed:.0f} detik lalu "
+                                f"(loop {state.loop_count})."
+                    })
 
         now = time.time()
         for profile_id, session in list(state.web_sessions.items()):
-            if not session.get("active") or session.get("starting") or session.get("paused"):
+            if not session.get("active") or session.get("starting"):
+                continue
+            if session.get("paused"):
+                _emit_watchdog_status(profile_id, session, now, "dijeda")
                 continue
             session_interval = session["watchdog_interval"]
             not_playing_since = session.get("not_playing_since")
@@ -1420,40 +1612,32 @@ async def watchdog_loop():
                         f"[BayzBot] Watchdog gagal memulihkan profil {profile_id}: {exc}"
                     )
 
-            elif (
-                session.get("received_status")
-                and not stale
-                and not paused
-                and now - session["last_watchdog_log_at"] >= session_interval
-            ):
-                session["last_watchdog_log_at"] = now
-                status_age = max(0, int(now - session["last_status_at"]))
-                current_song = session.get("current_song") or "judul belum diterima"
-                state.emit("log", {
-                    "text": f"Watchdog: stream profil Dolphin {profile_id} normal; "
-                            f"{current_song}; status diterima {status_age} detik lalu."
-                })
+            elif session.get("received_status") and not stale and not paused:
+                _emit_watchdog_status(profile_id, session, now, "normal")
 
 
 async def ram_monitor_loop():
     """Pantau RAM sistem tiap RAM_CHECK_INTERVAL_SECONDS detik. Kirim
-    notifikasi Telegram PAKSA (walau toggle notif mati) kalau > 85%."""
+    notifikasi Telegram PAKSA (walau toggle notif mati) kalau melewati ambang
+    yang diatur di halaman Settings web (default 85%)."""
     already_alerted = False
+    state.emit("log", {"text": f"Monitor RAM aktif (ambang {get_ram_threshold():g}%, cek tiap {RAM_CHECK_INTERVAL_SECONDS} detik)."})
     while True:
         await asyncio.sleep(RAM_CHECK_INTERVAL_SECONDS)
         percent = get_ram_percent()
         state.emit("ram_status", {"percent": percent})
         if percent is None:
             continue
-        if percent > RAM_ALERT_THRESHOLD and not already_alerted:
+        threshold = get_ram_threshold()
+        if percent > threshold and not already_alerted:
             already_alerted = True
-            state.emit("log", {"text": f"RAM {percent:.0f}% melebihi ambang batas {RAM_ALERT_THRESHOLD:.0f}%!"})
+            state.emit("log", {"text": f"RAM {percent:.0f}% melebihi ambang batas {threshold:g}%!"})
             notify_telegram(
                 f"[BayzBot] PERINGATAN: RAM komputer terpakai {percent:.0f}% "
-                f"(> {RAM_ALERT_THRESHOLD:.0f}%).",
+                f"(> {threshold:g}%).",
                 force=True,
             )
-        elif percent <= RAM_ALERT_THRESHOLD - 5:
+        elif percent <= threshold - 5:
             already_alerted = False  # histeresis, hindari alert berulang di ambang batas
 
 
@@ -2346,7 +2530,7 @@ class App(tk.Tk):
             else:
                 self.ram_label.configure(
                     text=f"RAM: {percent:.0f}%",
-                    foreground="#c0392b" if percent > RAM_ALERT_THRESHOLD else "#333333",
+                    foreground="#c0392b" if percent > get_ram_threshold() else "#333333",
                 )
         elif kind == "playlist_stats_changed":
             if self.playlist_window is not None and self.playlist_window.winfo_exists():

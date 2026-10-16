@@ -24,7 +24,7 @@ class Settings extends BaseController
             'telegram_chat_id' => $this->settingsModel->getSetting('telegram_chat_id') ?? '',
             'telegram_notifications_enabled' => $this->settingsModel->getSetting('telegram_notifications_enabled') ?? '0',
             'telegram_ram_notifications_enabled' => $this->settingsModel->getSetting('telegram_ram_notifications_enabled') ?? '0',
-            'ram_threshold_percent' => $this->settingsModel->getSetting('ram_threshold_percent') ?? '85',
+            'ram_threshold_percent' => rtrim(rtrim(number_format($this->settingsModel->getRamThreshold(), 2, '.', ''), '0'), '.'),
             'total_loop' => $this->settingsModel->getSetting('total_loop') ?? '-1',
             'shuffle_playlist' => $this->settingsModel->getSetting('shuffle_playlist') ?? '0',
             'watchdog_interval' => $this->settingsModel->getSetting('watchdog_interval') ?? '30',
@@ -45,6 +45,29 @@ class Settings extends BaseController
         ]);
     }
 
+    /**
+     * Kirim pengaturan yang berlaku langsung (ambang RAM) ke backend Python supaya
+     * LOG dan peringatan Telegram memakai nilai yang sama dengan halaman ini.
+     * Kalau backend belum berjalan, nilainya ikut terkirim saat stream dijalankan.
+     */
+    private function pushRuntimeSettingsToBackend(): void
+    {
+        $url = BotBridge::normalizeUrl($this->settingsModel->getSetting('bot_bridge_url'));
+        $token = trim((string) $this->settingsModel->getSetting('bot_bridge_token'));
+        if ($url === null || $token === '') {
+            return;
+        }
+
+        $result = (new BotBridge())->updateSettings($url, $token, [
+            'ram_threshold_percent' => $this->settingsModel->getRamThreshold(),
+        ]);
+        if (!($result['success'] ?? false)) {
+            log_message('warning', 'Threshold RAM belum terkirim ke backend: {msg}', [
+                'msg' => $result['message'] ?? 'tidak ada respons',
+            ]);
+        }
+    }
+
     public function save()
     {
         $apiToken = $this->request->getPost('api_token');
@@ -52,7 +75,7 @@ class Settings extends BaseController
         $telegramChatId = $this->request->getPost('telegram_chat_id');
         $telegramNotificationsEnabled = $this->request->getPost('telegram_notifications_enabled') ? '1' : '0';
         $telegramRamNotificationsEnabled = $this->request->getPost('telegram_ram_notifications_enabled') ? '1' : '0';
-        $ramThresholdPercent = $this->request->getPost('ram_threshold_percent') ?? '85';
+        $ramThresholdInput = trim((string) ($this->request->getPost('ram_threshold_percent') ?? '85'));
         $ramStopStreamsEnabled = $this->request->getPost('ram_stop_streams_enabled') ? '1' : '0';
         $totalLoop = $this->request->getPost('total_loop') ?? '-1';
         $shufflePlaylist = $this->request->getPost('shuffle_playlist') ? '1' : '0';
@@ -74,7 +97,12 @@ class Settings extends BaseController
         $this->settingsModel->setSetting('telegram_chat_id', $telegramChatId);
         $this->settingsModel->setSetting('telegram_notifications_enabled', $telegramNotificationsEnabled);
         $this->settingsModel->setSetting('telegram_ram_notifications_enabled', $telegramRamNotificationsEnabled);
-        $this->settingsModel->setSetting('ram_threshold_percent', $ramThresholdPercent);
+        // Ambang RAM harus 1-100; nilai lain ditolak dan nilai lama dipertahankan.
+        if (is_numeric($ramThresholdInput) && (float) $ramThresholdInput >= 1 && (float) $ramThresholdInput <= 100) {
+            $this->settingsModel->setSetting('ram_threshold_percent', rtrim(rtrim(number_format((float) $ramThresholdInput, 2, '.', ''), '0'), '.'));
+        } else {
+            $ramThresholdError = 'Threshold RAM harus angka 1-100, nilai lama dipertahankan.';
+        }
         $this->settingsModel->setSetting('ram_stop_streams_enabled', $ramStopStreamsEnabled);
         $this->settingsModel->setSetting('total_loop', $totalLoop);
         $this->settingsModel->setSetting('shuffle_playlist', $shufflePlaylist);
@@ -102,7 +130,8 @@ class Settings extends BaseController
         $this->settingsModel->setSetting('revenue_rates', json_encode($revenueRates));
 
         $redirect = redirect()->back()->with('message', 'Settings saved successfully!');
-        $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null]);
+        $this->pushRuntimeSettingsToBackend();
+        $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null, $ramThresholdError ?? null]);
         if ($errors !== []) {
             $redirect->with('error', implode(' ', $errors));
         }
@@ -267,7 +296,7 @@ class Settings extends BaseController
     public function sendRamNotification()
     {
         $percent = (float) $this->request->getPost('ram_percent');
-        $threshold = (float) $this->request->getPost('ram_threshold');
+        $threshold = $this->settingsModel->getRamThreshold();
 
         // Get telegram settings from database
         $botToken = $this->settingsModel->getSetting('telegram_bot_token');
@@ -321,7 +350,7 @@ class Settings extends BaseController
     public function checkRamAndStopStreams()
     {
         $percent = (float) $this->request->getPost('ram_percent');
-        $threshold = (float) $this->request->getPost('ram_threshold');
+        $threshold = $this->settingsModel->getRamThreshold();
 
         // Get settings from database
         $ramStopStreamsEnabled = $this->settingsModel->getSetting('ram_stop_streams_enabled') ?? '0';

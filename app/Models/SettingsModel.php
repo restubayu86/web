@@ -23,6 +23,21 @@ class SettingsModel extends Model
             return $result ? (string) $result['value'] : null;
     }
 
+    /**
+     * Ambang RAM (persen) dari halaman Settings. Selalu 1-100; nilai kosong atau
+     * rusak kembali ke default 85.
+     */
+    public function getRamThreshold(): float
+    {
+        $value = $this->getSetting('ram_threshold_percent');
+        if ($value === null || !is_numeric($value)) {
+            return 85.0;
+        }
+        $threshold = (float) $value;
+
+        return ($threshold >= 1.0 && $threshold <= 100.0) ? $threshold : 85.0;
+    }
+
     public function setSetting($key, $value)
     {
         $existing = $this->where('key', $key)->first();
