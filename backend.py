@@ -896,7 +896,7 @@ async def _start_web_playlist(
         "active": True,
         "ads_detected": 0,
         "ads_skipped": 0,
-        "ads_fast_forwarded": 0,
+        "ads_played_full": 0,
         "ad_active": False,
         "ad_index": 0,
         "ad_kind": None,
@@ -1036,7 +1036,7 @@ async def _handle_web_playlist_completed(profile_id: str):
         })
 
 
-AD_EVENTS = {"adDetected", "adWaiting", "adSkipClicked", "adFastForward", "adUnskippable", "adEnded"}
+AD_EVENTS = {"adDetected", "adDecision", "adWaiting", "adSkipClicked", "adUnskippable", "adEnded"}
 AD_KIND_LABELS = {"short": "pendek", "long": "panjang"}
 
 
@@ -1052,7 +1052,7 @@ def describe_ad_status(holder: dict) -> str:
     totals = (
         f"total {int(holder.get('ads_detected', 0))}, "
         f"di-skip {int(holder.get('ads_skipped', 0))}, "
-        f"dipercepat {int(holder.get('ads_fast_forwarded', 0))}"
+        f"diputar penuh {int(holder.get('ads_played_full', 0))}"
     )
     if holder.get("ad_active"):
         started = holder.get("ad_started_at")
@@ -1090,47 +1090,39 @@ def log_ad_event(ws, msg) -> None:
     if ev == "adDetected":
         holder["ads_detected"] = int(holder.get("ads_detected", 0)) + 1
         holder.update(ad_active=True, ad_index=index, ad_kind=kind_key, ad_phase="terdeteksi", ad_started_at=time.time())
-        if msg.get("skippable"):
-            try:
-                delay = int(msg.get("skipDelaySeconds") or 0)
-            except (TypeError, ValueError):
-                delay = 0
-            when = f"skip otomatis setelah {delay} detik" if delay > 0 else "skip langsung"
-            text = f"{label} terdeteksi (tombol Skip tersedia, {when})."
+        text = f"{label} terdeteksi (tombol Skip {'tersedia' if msg.get('skippable') else 'belum muncul'})."
+    elif ev == "adDecision":
+        try:
+            threshold = float(msg.get("thresholdSeconds") or 0)
+        except (TypeError, ValueError):
+            threshold = 0.0
+        if msg.get("action") == "play_full":
+            holder["ad_phase"] = "diputar sampai selesai"
+            text = f"{label} tidak lebih lama dari batas skip {threshold:g} detik -> diputar sampai selesai."
         else:
-            text = f"{label} terdeteksi (tombol Skip belum muncul)."
+            holder["ad_phase"] = "akan di-skip"
+            text = f"{label} lebih lama dari batas skip {threshold:g} detik -> akan di-skip."
     elif ev == "adWaiting":
         holder["ad_phase"] = "menunggu tombol Skip"
-        try:
-            wait = float(msg.get("waitSeconds") or 0)
-        except (TypeError, ValueError):
-            wait = 0
-        text = f"{label}: menunggu tombol Skip maks. {wait:g} detik, lalu dipercepat bila tidak muncul."
+        text = f"{label}: menunggu tombol Skip muncul."
     elif ev == "adSkipClicked":
         holder["ad_phase"] = "tombol Skip diklik"
         text = f"tombol Skip {label} diklik ({_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
-    elif ev == "adFastForward":
-        holder["ads_fast_forwarded"] = int(holder.get("ads_fast_forwarded", 0)) + 1
-        holder["ad_phase"] = "dimute & dipercepat"
-        try:
-            rate = float(msg.get("rate") or 16)
-        except (TypeError, ValueError):
-            rate = 16
-        text = f"{label} tidak bisa di-skip -> dimute dan dipercepat {rate:g}x."
     elif ev == "adUnskippable":
-        text = (f"iklan tidak bisa di-skip, menunggu selesai sendiri "
-                f"({_ad_seconds(msg.get('elapsedMs'))} detik berjalan).")
+        holder["ad_phase"] = "diputar sampai selesai (tanpa tombol Skip)"
+        text = f"{label} tidak punya tombol Skip -> diputar sampai selesai."
     elif ev == "adEnded":
         skipped = msg.get("skipped") is True
-        fast = msg.get("fastForwarded") is True
         if skipped:
             holder["ads_skipped"] = int(holder.get("ads_skipped", 0)) + 1
+        else:
+            holder["ads_played_full"] = int(holder.get("ads_played_full", 0)) + 1
         holder.update(ad_active=False, ad_phase=None, ad_started_at=None)
-        how = "di-skip bot" if skipped else ("dipercepat bot" if fast else "habis sendiri")
+        how = "di-skip bot" if skipped else "diputar sampai selesai"
         text = (f"{label} selesai - {how} (durasi {_ad_seconds(msg.get('durationMs'))} detik). "
                 f"Total iklan: {int(holder.get('ads_detected', 0))}, "
                 f"di-skip: {int(holder.get('ads_skipped', 0))}, "
-                f"dipercepat: {int(holder.get('ads_fast_forwarded', 0))}.")
+                f"diputar penuh: {int(holder.get('ads_played_full', 0))}.")
     else:
         return
     state.emit("log", {"text": f"{who}: {text}"})

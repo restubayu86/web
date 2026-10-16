@@ -16,19 +16,15 @@
     "ytmusic-player-bar[ad-showing]",
   ].join(",");
   const AD_POLL_INTERVAL_MS = 500; // iklan pendek hanya ~5 detik, jadi dipantau lebih rapat dari status biasa
-  const SHORT_AD_MAX_SECONDS = 8; // iklan <= 8 detik dianggap pendek (bumper, tidak bisa di-skip)
-  const SKIP_BUTTON_WAIT_MS = 7000; // iklan panjang: tunggu tombol Skip sebelum dipercepat
-  const FAST_FORWARD_RATE = 16;
-  const MAX_FORCE_SEEK_SECONDS = 120; // jangan pernah seek ke akhir bila durasi > ini (bukan iklan)
+  const SHORT_AD_MAX_SECONDS = 8; // iklan <= 8 detik dilabeli pendek (bumper) di LOG; hanya informasi
+  const SKIP_BUTTON_WAIT_MS = 7000; // lewat ini tanpa tombol Skip -> dilaporkan tidak bisa di-skip
   const SKIP_CLICK_COOLDOWN_MS = 1500;
 
   let playback = { urls: [], index: 0, active: false, adSkipDelaySeconds: 0 };
   let statusTimer = null;
   let trackStartedUrl = null;
-  let skipTimer = null;
   let adState = null;
   let adIndex = 0; // urutan iklan dalam satu rangkaian (ad pod): 1, 2, ...
-  let adSavedMedia = null; // muted/playbackRate asli sebelum iklan dipercepat
   let adPollTimer = null;
 
   function mediaElement() {
@@ -288,6 +284,12 @@
     return seconds <= SHORT_AD_MAX_SECONDS ? "short" : "long";
   }
 
+  // Batas waktu skip (detik) dari Settings: iklan yang durasinya <= batas ini diputar
+  // sampai selesai; iklan yang lebih lama di-skip setelah batas ini terlewati.
+  function adSkipThresholdSeconds() {
+    return Math.max(0, Number(playback.adSkipDelaySeconds) || 0);
+  }
+
   function isSkipButtonReady(button) {
     return (
       Boolean(button) &&
@@ -323,49 +325,34 @@
       duration: seconds,
       kind: adKindFor(seconds),
       lastTime: media?.currentTime || 0,
+      decision: null, // "skip" | "play_full", ditentukan begitu durasi iklan diketahui
       skipClicked: false,
       skipClickedAt: 0,
-      fastForwarded: false,
       waitingReported: false,
+      unskippableReported: false,
     };
     emitAdEvent(
       "adDetected",
       adEventFields({
         skippable: Boolean(button),
-        skipDelaySeconds: playback.adSkipDelaySeconds,
+        skipDelaySeconds: adSkipThresholdSeconds(),
       }),
     );
   }
 
-  function restoreMedia() {
-    const media = mediaElement();
-    if (media && adSavedMedia) {
-      media.muted = adSavedMedia.muted;
-      media.playbackRate = adSavedMedia.rate || 1;
-    }
-    adSavedMedia = null;
-  }
-
-  // carryOver = iklan berikutnya langsung tayang (ad pod): jangan lepas mute dulu.
-  function endAd(carryOver) {
+  function endAd() {
     if (!adState) return;
-    if (skipTimer) {
-      clearTimeout(skipTimer);
-      skipTimer = null;
-    }
     emitAdEvent(
       "adEnded",
       adEventFields({
         durationMs: Date.now() - adState.startedAt,
         skipped: adState.skipClicked,
-        fastForwarded: adState.fastForwarded,
       }),
     );
-    if (!carryOver) restoreMedia();
     adState = null;
   }
 
-  // Iklan kedua dalam satu rangkaian tayang tanpa jeda: durasi berubah atau waktu mundur.
+  // Iklan berikutnya dalam satu rangkaian tayang tanpa jeda: durasi berubah atau waktu mundur.
   function looksLikeNewAd(media) {
     if (!adState || !media) return false;
     const duration = adDurationSeconds(media);
@@ -377,54 +364,31 @@
     return durationChanged || timeWentBack;
   }
 
-  function scheduleSkipClick() {
-    if (skipTimer) return;
-    if (Date.now() - adState.skipClickedAt < SKIP_CLICK_COOLDOWN_MS) return;
-    skipTimer = setTimeout(
-      () => {
-        skipTimer = null;
-        const current = document.querySelector(AD_SKIP_SELECTOR);
-        if (!adState || !isSkipButtonReady(current)) return;
-        clickElement(current);
-        adState.skipClicked = true;
-        adState.skipClickedAt = Date.now();
-        emitAdEvent(
-          "adSkipClicked",
-          adEventFields({ waitedMs: Date.now() - adState.startedAt }),
-        );
-      },
-      Math.max(0, playback.adSkipDelaySeconds * 1000),
+  // Putuskan sekali per iklan: durasi <= batas skip -> putar penuh, lebih lama -> skip.
+  function decideAd() {
+    if (adState.decision || !adState.duration) return;
+    const threshold = adSkipThresholdSeconds();
+    adState.decision = adState.duration <= threshold ? "play_full" : "skip";
+    emitAdEvent(
+      "adDecision",
+      adEventFields({ action: adState.decision, thresholdSeconds: threshold }),
     );
   }
 
-  // Iklan tanpa tombol Skip (pendek maupun panjang): mute + percepat + lompat ke akhir.
-  function fastForwardAd(media) {
-    if (!adState || !media) return;
-    if (!adSavedMedia) {
-      adSavedMedia = { muted: media.muted, rate: media.playbackRate };
-    }
-    media.muted = true;
-    media.playbackRate = FAST_FORWARD_RATE;
-    const duration = adDurationSeconds(media);
-    if (duration > 0 && duration <= MAX_FORCE_SEEK_SECONDS) {
-      try {
-        media.currentTime = Math.max(0, duration - 0.1);
-      } catch (_error) {
-        // sebagian iklan menolak seek; percepatan 16x tetap berjalan
-      }
-    }
-    adState.fastForwarded = true;
+  function clickSkipButton(button) {
+    if (Date.now() - adState.skipClickedAt < SKIP_CLICK_COOLDOWN_MS) return;
+    clickElement(button);
+    adState.skipClicked = true;
+    adState.skipClickedAt = Date.now();
     emitAdEvent(
-      "adFastForward",
-      adEventFields({
-        elapsedMs: Date.now() - adState.startedAt,
-        rate: FAST_FORWARD_RATE,
-      }),
+      "adSkipClicked",
+      adEventFields({ waitedMs: Date.now() - adState.startedAt }),
     );
   }
 
   // Dipanggil tiap AD_POLL_INTERVAL_MS saat playlist aktif.
-  // Alur: adDetected -> (adWaiting) -> adSkipClicked | adFastForward -> adEnded
+  // Alur: adDetected -> adDecision -> (adWaiting) -> adSkipClicked | adUnskippable -> adEnded
+  // Iklan TIDAK dimute atau dipercepat; yang tidak bisa di-skip dibiarkan sampai selesai.
   function adTick() {
     const media = mediaElement();
     const button = document.querySelector(AD_SKIP_SELECTOR);
@@ -432,12 +396,12 @@
       Boolean(button) || Boolean(document.querySelector(AD_TOGGLE_SELECTOR));
 
     if (!showing) {
-      if (adState) endAd(false);
+      if (adState) endAd();
       adIndex = 0; // rangkaian iklan berikutnya mulai lagi dari iklan ke-1
       return;
     }
 
-    if (adState && looksLikeNewAd(media)) endAd(true);
+    if (adState && looksLikeNewAd(media)) endAd();
     if (!adState) beginAd(media, button);
 
     if (media) {
@@ -449,24 +413,26 @@
       adState.lastTime = media.currentTime || 0;
     }
 
+    decideAd();
+    if (adState.decision === "play_full") return; // durasi <= batas skip: putar seluruhnya
+
+    // Iklan akan di-skip (atau durasinya belum diketahui): klik Skip setelah batas
+    // waktu terlewati sejak iklan mulai.
+    const elapsed = Date.now() - adState.startedAt;
     if (isSkipButtonReady(button)) {
-      scheduleSkipClick();
+      if (elapsed >= adSkipThresholdSeconds() * 1000) clickSkipButton(button);
       return;
     }
     if (button) return; // tombol ada tapi masih hitung mundur: tunggu sampai aktif
 
-    // Tidak ada tombol Skip. Iklan pendek langsung dipercepat; iklan panjang
-    // diberi waktu dulu karena tombol baru muncul setelah ~5 detik.
-    const elapsed = Date.now() - adState.startedAt;
-    const waitMs =
-      adState.kind === "short"
-        ? 1000
-        : Math.max(SKIP_BUTTON_WAIT_MS, playback.adSkipDelaySeconds * 1000);
-    if (adState.kind !== "short" && !adState.waitingReported) {
+    if (!adState.waitingReported) {
       adState.waitingReported = true;
-      emitAdEvent("adWaiting", adEventFields({ waitSeconds: waitMs / 1000 }));
+      emitAdEvent("adWaiting", adEventFields({ waitSeconds: SKIP_BUTTON_WAIT_MS / 1000 }));
     }
-    if (!adState.fastForwarded && elapsed >= waitMs) fastForwardAd(media);
+    if (!adState.unskippableReported && elapsed >= SKIP_BUTTON_WAIT_MS) {
+      adState.unskippableReported = true;
+      emitAdEvent("adUnskippable", adEventFields({ elapsedMs: elapsed }));
+    }
   }
 
   async function initialize() {
@@ -485,7 +451,7 @@
         if (playback.active) {
           adTick();
         } else if (adState) {
-          endAd(false); // playlist dihentikan: lepas mute/percepatan
+          endAd(); // playlist dihentikan: hentikan pelacakan iklan
         }
       }, AD_POLL_INTERVAL_MS);
 

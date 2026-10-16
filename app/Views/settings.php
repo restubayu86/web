@@ -507,6 +507,7 @@
                             <div class="md:col-span-1">
                                 <label class="block text-xs font-medium text-gray-300 mb-1.5">Skip Iklan Delay (detik)</label>
                                 <input type="number" class="w-full bg-dark-900 border border-gray-700/80 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono" name="ad_skip_delay_seconds" id="ad_skip_delay_seconds" value="<?= esc($ad_skip_delay_seconds ?? '0') ?>" min="0" step="0.5" placeholder="0" autocomplete="off">
+                                <p class="text-[11px] text-gray-500 mt-1.5">Iklan dengan durasi sampai batas ini diputar sampai selesai; iklan yang lebih lama di-skip setelah batas ini terlewati. 0 = skip semua iklan yang bisa di-skip.</p>
                             </div>
                             <div class="md:col-span-2">
                                 <label class="block text-xs font-medium text-gray-300 mb-1.5">Acak Playlist (Round Robin)</label>

@@ -69,11 +69,12 @@
 - **Threshold RAM**: halaman Stream tidak menerima nilai dari Settings (selalu 85) dan backend memakai konstanta 85.
   Kini nilai Settings (1-100, divalidasi) dipakai halaman, dikirim ke backend (`POST /api/settings`, juga ikut `/api/play`)
   dan disimpan di `gui_config.json` (`ram_threshold_percent`).
-- **Iklan**: iklan kedua dalam satu rangkaian terdeteksi sebagai iklan baru. Iklan tanpa tombol Skip dimute dan dipercepat 16x
-  (pendek <= 8 detik langsung; panjang menunggu tombol Skip 7 detik dulu). Mute/kecepatan dipulihkan setelah iklan selesai
-  atau playlist dihentikan; event `ended` milik iklan tidak lagi memindah lagu. Polling iklan tiap 0,5 detik.
+- **Iklan**: iklan kedua dalam satu rangkaian terdeteksi sebagai iklan baru. Aturan skip memakai "Skip Iklan Delay (detik)"
+  di Settings sebagai batas: iklan yang durasinya sampai batas itu diputar sampai selesai, iklan yang lebih lama di-skip
+  (tombol Skip diklik setelah batas terlewati). Iklan tidak pernah dimute atau dipercepat; iklan tanpa tombol Skip dibiarkan
+  sampai selesai dan hanya dilaporkan di LOG. Event `ended` milik iklan tidak lagi memindah lagu. Polling iklan tiap 0,5 detik.
 - **LOG/Watchdog**: Watchdog melapor tiap interval (juga saat dijeda dan untuk playlist GUI) lengkap dengan status iklan
-  (membaca iklan, menunggu Skip, Skip diklik, dipercepat, total di-skip/dipercepat). Iklan > 90 detik ditandai WARNING.
+  (iklan terdeteksi, keputusan putar penuh/skip, menunggu Skip, Skip diklik, total di-skip/diputar penuh). Iklan > 90 detik ditandai WARNING.
 
 ## Belum ditangani
 - Token Dolphin/Telegram masih plaintext di tabel `settings`.
