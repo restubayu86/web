@@ -38,6 +38,14 @@ class BotBridge
         return $this->request($baseUrl, $token, 'GET', '/api/health', [], 5);
     }
 
+    /**
+     * Terapkan pengaturan yang berlaku langsung di backend (mis. ambang RAM).
+     */
+    public function updateSettings(string $baseUrl, string $token, array $settings): array
+    {
+        return $this->request($baseUrl, $token, 'POST', '/api/settings', $settings, 3);
+    }
+
     public function play(string $baseUrl, string $token, array $payload): array
     {
         return $this->request($baseUrl, $token, 'POST', '/api/play', $payload, 60);

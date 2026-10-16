@@ -62,6 +62,19 @@
   sehingga `backend.py` milik proyek lain tidak ikut dihentikan. Nama lama masih dikenali.
 - `gui_config.json` tidak diubah.
 
+## Perbaikan: Telegram, threshold RAM, iklan, Watchdog
+- **Telegram**: `/stopstream`, `/pause`, `/play` (`/resume`), `/next`, `/prev`, `/restart` (opsional `id_profil`) kini
+  dikirim lewat jalur yang sama dengan tombol di web (perintah ke ekstensi + status sesi), jadi halaman web ikut berubah.
+  Sebelumnya `/stopstream` hanya mengubah flag di Python sehingga musik tetap berjalan. `/status` menampilkan status per sesi.
+- **Threshold RAM**: halaman Stream tidak menerima nilai dari Settings (selalu 85) dan backend memakai konstanta 85.
+  Kini nilai Settings (1-100, divalidasi) dipakai halaman, dikirim ke backend (`POST /api/settings`, juga ikut `/api/play`)
+  dan disimpan di `gui_config.json` (`ram_threshold_percent`).
+- **Iklan**: iklan kedua dalam satu rangkaian terdeteksi sebagai iklan baru. Iklan tanpa tombol Skip dimute dan dipercepat 16x
+  (pendek <= 8 detik langsung; panjang menunggu tombol Skip 7 detik dulu). Mute/kecepatan dipulihkan setelah iklan selesai
+  atau playlist dihentikan; event `ended` milik iklan tidak lagi memindah lagu. Polling iklan tiap 0,5 detik.
+- **LOG/Watchdog**: Watchdog melapor tiap interval (juga saat dijeda dan untuk playlist GUI) lengkap dengan status iklan
+  (membaca iklan, menunggu Skip, Skip diklik, dipercepat, total di-skip/dipercepat). Iklan > 90 detik ditandai WARNING.
+
 ## Belum ditangani
 - Token Dolphin/Telegram masih plaintext di tabel `settings`.
 - Belum ada kepemilikan data per user; `/users` dan `/log` masih stub.
