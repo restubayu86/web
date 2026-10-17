@@ -76,6 +76,13 @@
 - **LOG/Watchdog**: Watchdog melapor tiap interval (juga saat dijeda dan untuk playlist GUI) lengkap dengan status iklan
   (iklan terdeteksi, keputusan putar penuh/skip, menunggu Skip, Skip diklik, total di-skip/diputar penuh). Iklan > 90 detik ditandai WARNING.
 
+## Halaman Chromium bergaya halaman Browser
+- Header, kartu statistik (Total/Running/Stopped), filter All/Running/Stopped, indikator auto-refresh, tabel dengan checkbox
+  (Name, Instance, Proxy, Playlist, Actions), pager 10 baris/halaman, bulk bar Start/Stop, toast dan dialog SweetAlert,
+  serta bendera negara proxy kini sama dengan halaman Browser. Kotak pencarian sekarang berfungsi.
+- Form "Create profile" dan "Chromium executable" pindah ke modal (tombol NEW PROFILE dan ikon gerigi); edit nama/proxy/playlist
+  lewat modal (ikon pensil). Tidak ada perubahan API/controller.
+
 ## Belum ditangani
 - Token Dolphin/Telegram masih plaintext di tabel `settings`.
 - Belum ada kepemilikan data per user; `/users` dan `/log` masih stub.
