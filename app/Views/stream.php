@@ -107,22 +107,34 @@
             <div class="bg-dark-800/90 border border-gray-800 rounded-2xl shadow-xl p-5 flex items-center gap-4 relative overflow-hidden backdrop-blur-md">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 to-blue-500"></div>
                 <div class="w-12 h-12 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center border border-cyan-500/20"><i class="bi bi-broadcast text-xl"></i></div>
-                <div><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Streams</p><p id="totalStreams" class="text-2xl font-bold text-white">0</p></div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Streams</p>
+                    <p id="totalStreams" class="text-2xl font-bold text-white">0</p>
+                </div>
             </div>
             <div class="bg-dark-800/90 border border-gray-800 rounded-2xl shadow-xl p-5 flex items-center gap-4 relative overflow-hidden backdrop-blur-md">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
                 <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20"><i class="bi bi-play-circle text-xl"></i></div>
-                <div><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active</p><p id="activeStreams" class="text-2xl font-bold text-white">0</p></div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Active</p>
+                    <p id="activeStreams" class="text-2xl font-bold text-white">0</p>
+                </div>
             </div>
             <div class="bg-dark-800/90 border border-gray-800 rounded-2xl shadow-xl p-5 flex items-center gap-4 relative overflow-hidden backdrop-blur-md">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
                 <div class="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center border border-blue-500/20"><i class="bi bi-music-note-list text-xl"></i></div>
-                <div><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Plays</p><p id="totalPlays" class="text-2xl font-bold text-white">0</p></div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total Plays</p>
+                    <p id="totalPlays" class="text-2xl font-bold text-white">0</p>
+                </div>
             </div>
             <div class="bg-dark-800/90 border border-gray-800 rounded-2xl shadow-xl p-5 flex items-center gap-4 relative overflow-hidden backdrop-blur-md">
                 <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 to-purple-500"></div>
                 <div class="w-12 h-12 rounded-xl bg-violet-500/10 text-violet-400 flex items-center justify-center border border-violet-500/20"><i class="bi bi-clock-history text-xl"></i></div>
-                <div><p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Running Time</p><p id="runningTime" class="text-2xl font-bold text-white">0h</p></div>
+                <div>
+                    <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Running Time</p>
+                    <p id="runningTime" class="text-2xl font-bold text-white">0h</p>
+                </div>
             </div>
         </section>
 
@@ -214,7 +226,7 @@
         </div>
 
 
-                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
                 <h2 class="text-lg font-semibold text-white">Your streams</h2>
                 <p class="text-sm text-gray-400">Manage playlist playback for connected Dolphin profiles.</p>
@@ -224,50 +236,52 @@
             </span>
         </div>
 
-                        <!-- Revenue Estimation Panel -->
-                        <div id="revenuePanel" class="bg-dark-800/90 border border-gray-800 rounded-2xl p-5 shadow-xl mb-5 hidden">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-base font-semibold text-white flex items-center gap-2">
-                                    <i class="bi bi-currency-dollar text-amber-400"></i> Revenue Estimation
-                                </h3>
-                                <button onclick="toggleRevenuePanel()" class="text-xs text-gray-400 hover:text-gray-300">
-                                    <i class="bi bi-chevron-up" id="revenueToggleIcon"></i>
-                                </button>
-                            </div>
-                            <div id="revenueContent">
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
-                                        <p class="text-xs text-gray-400 uppercase tracking-wider">Total Streams</p>
-                                        <p id="revTotalStreams" class="text-2xl font-bold text-white">0</p>
-                                    </div>
-                                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
-                                        <p class="text-xs text-gray-400 uppercase tracking-wider">Active Streams</p>
-                                        <p id="revActiveStreams" class="text-2xl font-bold text-emerald-400">0</p>
-                                    </div>
-                                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
-                                        <p class="text-xs text-gray-400 uppercase tracking-wider">Est. Revenue/Stream</p>
-                                        <p id="revEstRevenue" class="text-2xl font-bold text-amber-400">$0</p>
-                                    </div>
-                                </div>
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-sm">
-                                        <thead>
-                                            <tr class="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
-                                                <th class="pb-2">Country</th>
-                                                <th class="pb-2 text-right">Rate/Stream</th>
-                                                <th class="pb-2 text-right">Active</th>
-                                                <th class="pb-2 text-right">Est. Revenue</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="revenueTableBody" class="text-gray-300">
-                                            <tr><td colspan="4" class="py-4 text-center text-gray-500">Loading...</td></tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+        <!-- Revenue Estimation Panel -->
+        <div id="revenuePanel" class="bg-dark-800/90 border border-gray-800 rounded-2xl p-5 shadow-xl mb-5 hidden">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="bi bi-cash-coin text-amber-400"></i> Revenue Estimation
+                </h3>
+                <button onclick="toggleRevenuePanel()" class="text-xs text-gray-400 hover:text-gray-300">
+                    <i class="bi bi-chevron-up" id="revenueToggleIcon"></i>
+                </button>
+            </div>
+            <div id="revenueContent">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Total Streams</p>
+                        <p id="revTotalStreams" class="text-2xl font-bold text-white">0</p>
+                    </div>
+                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Active Streams</p>
+                        <p id="revActiveStreams" class="text-2xl font-bold text-emerald-400">0</p>
+                    </div>
+                    <div class="bg-dark-900 border border-gray-700 rounded-xl p-4 text-center">
+                        <p class="text-xs text-gray-400 uppercase tracking-wider">Est. Revenue/Stream</p>
+                        <p id="revEstRevenue" class="text-2xl font-bold text-amber-400">Rp 0</p>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-700">
+                                <th class="pb-2">Country</th>
+                                <th class="pb-2 text-right">Rate/Stream</th>
+                                <th class="pb-2 text-right">Active</th>
+                                <th class="pb-2 text-right">Est. Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="revenueTableBody" class="text-gray-300">
+                            <tr>
+                                <td colspan="4" class="py-4 text-center text-gray-500">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
 
-                        <div id="streamsContainer" class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div id="streamsContainer" class="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div class="col-span-full bg-dark-800/90 border border-gray-800 rounded-2xl p-12 text-center text-gray-500 shadow-xl">
                 <i class="bi bi-arrow-repeat animate-spin text-3xl text-cyan-400"></i>
                 <p class="mt-3 text-sm">Loading streams...</p>
@@ -276,48 +290,48 @@
     </main>
 
     <!-- Create Stream Modal -->
-        <div id="addStreamModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4">
-            <div class="bg-dark-800 border border-gray-700/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-200" id="addStreamModalContent">
-                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-dark-900/50">
-                    <h3 class="text-base font-semibold text-white flex items-center gap-2">
-                        <i class="bi bi-broadcast text-cyan-400"></i> Create New Stream
-                    </h3>
-                    <button onclick="closeCreateStreamModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-700 transition-colors">
-                        <i class="bi bi-x-lg text-sm"></i>
-                    </button>
-                </div>
-                <div class="p-6">
-                    <form id="addStreamForm">
-                        <div class="mb-4">
-                            <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-                                <span class="text-cyan-400 font-bold mr-1">•</span> Stream Name
-                            </label>
-                            <input type="text" id="streamName" required placeholder="e.g., Main Profile Stream" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
-                        </div>
-                        <div class="mb-4">
-                            <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-                                <span class="text-gray-500">○</span> Profile <span class="text-gray-500 font-normal text-xs">(Optional)</span>
-                            </label>
-                            <select id="streamProfile" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
-                                <option value="">Select a profile...</option>
-                            </select>
-                        </div>
-                        <div class="mb-6">
-                            <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
-                                <span class="text-gray-500">○</span> Playlist <span class="text-gray-500 font-normal text-xs">(Optional)</span>
-                            </label>
-                            <select id="streamPlaylist" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
-                                <option value="">Select a playlist...</option>
-                            </select>
-                        </div>
-                        <div class="flex items-center justify-end gap-3">
-                            <button type="button" onclick="closeCreateStreamModal()" class="px-4 py-2.5 rounded-xl bg-dark-700 text-gray-300 text-xs font-medium hover:bg-dark-600 transition-colors">Cancel</button>
-                            <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all">Create Stream</button>
-                        </div>
-                    </form>
-                </div>
+    <div id="addStreamModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4">
+        <div class="bg-dark-800 border border-gray-700/80 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden transform transition-all scale-95 opacity-0 duration-200" id="addStreamModalContent">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-gray-700/60 bg-dark-900/50">
+                <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                    <i class="bi bi-broadcast text-cyan-400"></i> Create New Stream
+                </h3>
+                <button onclick="closeCreateStreamModal()" class="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-white hover:bg-dark-700 transition-colors">
+                    <i class="bi bi-x-lg text-sm"></i>
+                </button>
+            </div>
+            <div class="p-6">
+                <form id="addStreamForm">
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
+                            <span class="text-cyan-400 font-bold mr-1">•</span> Stream Name
+                        </label>
+                        <input type="text" id="streamName" required placeholder="e.g., Main Profile Stream" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
+                            <span class="text-gray-500">○</span> Profile <span class="text-gray-500 font-normal text-xs">(Optional)</span>
+                        </label>
+                        <select id="streamProfile" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                            <option value="">Select a profile...</option>
+                        </select>
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">
+                            <span class="text-gray-500">○</span> Playlist <span class="text-gray-500 font-normal text-xs">(Optional)</span>
+                        </label>
+                        <select id="streamPlaylist" class="w-full bg-dark-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
+                            <option value="">Select a playlist...</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center justify-end gap-3">
+                        <button type="button" onclick="closeCreateStreamModal()" class="px-4 py-2.5 rounded-xl bg-dark-700 text-gray-300 text-xs font-medium hover:bg-dark-600 transition-colors">Cancel</button>
+                        <button type="submit" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all">Create Stream</button>
+                    </div>
+                </form>
             </div>
         </div>
+    </div>
 
     <!-- Stats Modal -->
     <div id="statsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm hidden p-4" role="dialog" aria-modal="true" aria-labelledby="statsModalTitle">
@@ -420,7 +434,7 @@
                 checkPythonHealth();
                 loadPythonLogs();
             }, 30000);
-            
+
             document.getElementById('checkPythonBtn').addEventListener('click', checkPythonHealth);
             document.getElementById('stopPythonBtn').addEventListener('click', stopPython);
         });
@@ -438,135 +452,141 @@
                     lastStreams = data.data;
                     renderStreams(data.data);
                     updateStats(data.data);
-                            updateRevenueEstimation(data.data);
-                            profileIdsWithStreams = new Set(
-                                data.data
-                                    .filter(stream => stream.profile_id !== null && stream.profile_id !== '')
-                                    .map(stream => String(stream.profile_id))
-                            );
-                            updateAvailableProfiles();
-                            lastStreamLoadError = '';
-                            const warnings = Array.isArray(data.warnings) ? data.warnings : [];
-                            const warningKey = warnings.join('\n');
-                            if (warningKey && warningKey !== lastBridgeWarning) {
-                                showAlert(warnings.join('\n'), 'warning');
-                            }
-                            lastBridgeWarning = warningKey;
-                        })
-                        .catch(error => {
-                            console.error('Error loading streams:', error);
-                            const message = error.message || 'Could not load streams.';
-                            if (message !== lastStreamLoadError) showAlert(message, 'danger');
-                            lastStreamLoadError = message;
-                        });
-                }
-
-                function loadRevenueSettings() {
-                    fetch(`${baseUrl}api/settings/revenue`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success && data.data) {
-                                window.revenueRates = data.data;
-                                renderRevenueSettings(data.data);
-                                // Hitung ulang segera setelah rate tersedia (agar tidak menunggu refresh 5 detik)
-                                if (lastStreams.length) updateRevenueEstimation(lastStreams);
-                            }
-                        })
-                        .catch(() => {});
-                }
-
-                function renderRevenueSettings(rates) {
-                    const container = document.getElementById('revenue-rows');
-                    if (!container) return;
-                    container.innerHTML = '';
-                                    const ratesArray = Array.isArray(rates) ? rates : [];
-                                    ratesArray.forEach(r => {
-                                        addRevenueRow(r.country, r.rate);
-                                    });
-                                }
-
-                function updateRevenueEstimation(streams) {
-                    const panel = document.getElementById('revenuePanel');
-                    if (!panel) return;
-            
-                    // Load revenue settings if not loaded
-                    if (!window.revenueRates) {
-                        loadRevenueSettings();
+                    updateRevenueEstimation(data.data);
+                    profileIdsWithStreams = new Set(
+                        data.data
+                        .filter(stream => stream.profile_id !== null && stream.profile_id !== '')
+                        .map(stream => String(stream.profile_id))
+                    );
+                    updateAvailableProfiles();
+                    lastStreamLoadError = '';
+                    const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+                    const warningKey = warnings.join('\n');
+                    if (warningKey && warningKey !== lastBridgeWarning) {
+                        showAlert(warnings.join('\n'), 'warning');
                     }
-            
-                                    const rates = Array.isArray(window.revenueRates) ? window.revenueRates : [];
-                    const rateMap = {};
-                    rates.forEach(r => { rateMap[r.country.toUpperCase()] = parseFloat(r.rate) || 0; });
-            
-                    // Status aktif yang dipakai backend: 'running' (playing/active = nama lama)
-                    const isActiveStatus = status => ['running', 'playing', 'active'].includes(status);
-                    // Country tidak diketahui -> otomatis ke ID (Indonesia) jika rate ID ada di data revenue
-                    const isUnknownCountry = value => ['', 'UNKNOWN', 'N/A', 'NA', 'NONE', 'NULL', '-'].includes(value);
-                    const fallbackCountry = Object.prototype.hasOwnProperty.call(rateMap, 'ID') ? 'ID' : 'UNKNOWN';
+                    lastBridgeWarning = warningKey;
+                })
+                .catch(error => {
+                    console.error('Error loading streams:', error);
+                    const message = error.message || 'Could not load streams.';
+                    if (message !== lastStreamLoadError) showAlert(message, 'danger');
+                    lastStreamLoadError = message;
+                });
+        }
 
-                    const totalStreams = streams.length;
-                    const activeStreams = streams.filter(s => isActiveStatus(s.status)).length;
-            
-                    // Group by country (from proxy)
-                    const countryStats = {};
-                    streams.forEach(stream => {
-                        let country = String(stream.proxy_country || '').trim().toUpperCase();
-                        const wasUnknown = isUnknownCountry(country);
-                        if (wasUnknown) country = fallbackCountry;
-                        if (!countryStats[country]) {
-                            countryStats[country] = { total: 0, active: 0, assumed: 0 };
-                        }
-                        countryStats[country].total++;
-                        if (wasUnknown && country === 'ID') countryStats[country].assumed++;
-                        if (isActiveStatus(stream.status)) {
-                            countryStats[country].active++;
-                        }
-                    });
-            
-                    let totalEstRevenue = 0;
-                    const tbody = document.getElementById('revenueTableBody');
-                    tbody.innerHTML = '';
-            
-                    Object.entries(countryStats).forEach(([country, stats]) => {
-                        const rate = rateMap[country] || 0;
-                        const estRevenue = stats.active * rate;
-                        totalEstRevenue += estRevenue;
-                
-                        const tr = document.createElement('tr');
-                        tr.className = 'border-b border-gray-800';
-                        tr.innerHTML = `
+        function loadRevenueSettings() {
+            fetch(`${baseUrl}api/settings/revenue`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.data) {
+                        window.revenueRates = data.data;
+                        renderRevenueSettings(data.data);
+                        // Hitung ulang segera setelah rate tersedia (agar tidak menunggu refresh 5 detik)
+                        if (lastStreams.length) updateRevenueEstimation(lastStreams);
+                    }
+                })
+                .catch(() => {});
+        }
+
+        function renderRevenueSettings(rates) {
+            const container = document.getElementById('revenue-rows');
+            if (!container) return;
+            container.innerHTML = '';
+            const ratesArray = Array.isArray(rates) ? rates : [];
+            ratesArray.forEach(r => {
+                addRevenueRow(r.country, r.rate);
+            });
+        }
+
+        function updateRevenueEstimation(streams) {
+            const panel = document.getElementById('revenuePanel');
+            if (!panel) return;
+
+            // Load revenue settings if not loaded
+            if (!window.revenueRates) {
+                loadRevenueSettings();
+            }
+
+            const rates = Array.isArray(window.revenueRates) ? window.revenueRates : [];
+            const rateMap = {};
+            rates.forEach(r => {
+                rateMap[r.country.toUpperCase()] = parseFloat(r.rate) || 0;
+            });
+
+            // Status aktif yang dipakai backend: 'running' (playing/active = nama lama)
+            const isActiveStatus = status => ['running', 'playing', 'active'].includes(status);
+            // Country tidak diketahui -> otomatis ke ID (Indonesia) jika rate ID ada di data revenue
+            const isUnknownCountry = value => ['', 'UNKNOWN', 'N/A', 'NA', 'NONE', 'NULL', '-'].includes(value);
+            const fallbackCountry = Object.prototype.hasOwnProperty.call(rateMap, 'ID') ? 'ID' : 'UNKNOWN';
+
+            const totalStreams = streams.length;
+            const activeStreams = streams.filter(s => isActiveStatus(s.status)).length;
+
+            // Group by country (from proxy)
+            const countryStats = {};
+            streams.forEach(stream => {
+                let country = String(stream.proxy_country || '').trim().toUpperCase();
+                const wasUnknown = isUnknownCountry(country);
+                if (wasUnknown) country = fallbackCountry;
+                if (!countryStats[country]) {
+                    countryStats[country] = {
+                        total: 0,
+                        active: 0,
+                        assumed: 0
+                    };
+                }
+                countryStats[country].total++;
+                if (wasUnknown && country === 'ID') countryStats[country].assumed++;
+                if (isActiveStatus(stream.status)) {
+                    countryStats[country].active++;
+                }
+            });
+
+            let totalEstRevenue = 0;
+            const tbody = document.getElementById('revenueTableBody');
+            tbody.innerHTML = '';
+
+            Object.entries(countryStats).forEach(([country, stats]) => {
+                const rate = rateMap[country] || 0;
+                const estRevenue = stats.active * rate;
+                totalEstRevenue += estRevenue;
+
+                const tr = document.createElement('tr');
+                tr.className = 'border-b border-gray-800';
+                tr.innerHTML = `
                             <td class="py-2">${escapeHtml(country)}${stats.assumed ? ` <span class="text-[10px] text-gray-500" title="${stats.assumed} stream tanpa data negara dikaitkan ke ID (Indonesia)">(${stats.assumed} unknown)</span>` : ''}</td>
-                            <td class="py-2 text-right">$${rate.toLocaleString()}</td>
+                            <td class="py-2 text-right">${formatRupiah(rate)}</td>
                             <td class="py-2 text-right">${stats.active} / ${stats.total}</td>
-                            <td class="py-2 text-right text-amber-400 font-medium">$${estRevenue.toLocaleString()}</td>
+                            <td class="py-2 text-right text-amber-400 font-medium">${formatRupiah(estRevenue)}</td>
                         `;
-                        tbody.appendChild(tr);
-                    });
-            
-                    if (Object.keys(countryStats).length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No streams</td></tr>';
-                    }
-            
-                    document.getElementById('revTotalStreams').textContent = totalStreams;
-                    document.getElementById('revActiveStreams').textContent = activeStreams;
-                    document.getElementById('revEstRevenue').textContent = '$' + totalEstRevenue.toLocaleString();
-            
-                    panel.classList.remove('hidden');
-                }
+                tbody.appendChild(tr);
+            });
 
-                function toggleRevenuePanel() {
-                    const content = document.getElementById('revenueContent');
-                    const icon = document.getElementById('revenueToggleIcon');
-                    if (content.classList.contains('hidden')) {
-                        content.classList.remove('hidden');
-                        icon.classList.remove('bi-chevron-down');
-                        icon.classList.add('bi-chevron-up');
-                    } else {
-                        content.classList.add('hidden');
-                        icon.classList.remove('bi-chevron-up');
-                        icon.classList.add('bi-chevron-down');
-                    }
-                }
+            if (Object.keys(countryStats).length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-center text-gray-500">No streams</td></tr>';
+            }
+
+            document.getElementById('revTotalStreams').textContent = totalStreams;
+            document.getElementById('revActiveStreams').textContent = activeStreams;
+            document.getElementById('revEstRevenue').textContent = formatRupiah(totalEstRevenue);
+
+            panel.classList.remove('hidden');
+        }
+
+        function toggleRevenuePanel() {
+            const content = document.getElementById('revenueContent');
+            const icon = document.getElementById('revenueToggleIcon');
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-up');
+            } else {
+                content.classList.add('hidden');
+                icon.classList.remove('bi-chevron-up');
+                icon.classList.add('bi-chevron-down');
+            }
+        }
 
         async function loadProfiles() {
             const select = document.getElementById('streamProfile');
@@ -772,7 +792,13 @@
         }
 
         // ===== Stats: grafik bar total putar / estimasi revenue =====
-        const statsState = { streamId: null, metric: 'plays', group: 'day', data: null, requestSeq: 0 };
+        const statsState = {
+            streamId: null,
+            metric: 'plays',
+            group: 'day',
+            data: null,
+            requestSeq: 0
+        };
 
         function toInputDate(date) {
             const pad = n => String(n).padStart(2, '0');
@@ -789,8 +815,8 @@
             const off = 'bg-dark-900 text-gray-400 hover:text-gray-200';
             const set = (id, active) => {
                 document.getElementById(id).className = document.getElementById(id).className
-                    .replace(/bg-cyan-500\/20 text-cyan-300|bg-dark-900 text-gray-400 hover:text-gray-200/g, '').trim()
-                    + ' ' + (active ? on : off);
+                    .replace(/bg-cyan-500\/20 text-cyan-300|bg-dark-900 text-gray-400 hover:text-gray-200/g, '').trim() +
+                    ' ' + (active ? on : off);
             };
             set('statsMetricPlays', statsState.metric === 'plays');
             set('statsMetricRevenue', statsState.metric === 'revenue');
@@ -905,7 +931,11 @@
                 return;
             }
             const seq = ++statsState.requestSeq;
-            const params = new URLSearchParams({ start, end, group: statsState.group });
+            const params = new URLSearchParams({
+                start,
+                end,
+                group: statsState.group
+            });
             fetch(`${baseUrl}api/stream/chart/${statsState.streamId}?${params.toString()}`)
                 .then(async response => {
                     const data = await response.json().catch(() => ({}));
@@ -931,14 +961,28 @@
         function formatStatsLabel(key, group) {
             const parts = String(key).split('-').map(Number);
             if (group === 'month') {
-                return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('id-ID', { month: 'short', year: '2-digit' });
+                return new Date(parts[0], parts[1] - 1, 1).toLocaleDateString('id-ID', {
+                    month: 'short',
+                    year: '2-digit'
+                });
             }
-            return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+            return new Date(parts[0], parts[1] - 1, parts[2]).toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'short'
+            });
+        }
+
+        // Format rupiah: "Rp 1.250.000"
+        function formatRupiah(value, maxFractionDigits = 2) {
+            return 'Rp ' + Number(value || 0).toLocaleString('id-ID', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: maxFractionDigits
+            });
         }
 
         function formatStatsValue(value, metric) {
             if (metric === 'revenue') {
-                return '$' + Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+                return formatRupiah(value);
             }
             return Number(value).toLocaleString('id-ID');
         }
@@ -952,10 +996,17 @@
         }
 
         function renderBarChartSvg(buckets, metric, group) {
-            const W = 720, H = 280, left = 56, right = 12, top = 18, bottom = 44;
-            const innerW = W - left - right, innerH = H - top - bottom;
+            const W = 720,
+                H = 280,
+                right = 12,
+                top = 18,
+                bottom = 44;
             const values = buckets.map(b => Number(b[metric]) || 0);
             const max = niceStatsMax(Math.max(...values, 0));
+            const axisChars = Math.max(...[0, 1, 2, 3, 4].map(i => formatStatsValue(max * i / 4, metric).length));
+            const left = Math.max(56, Math.ceil(axisChars * 6.4) + 14);
+            const innerW = W - left - right,
+                innerH = H - top - bottom;
             const n = buckets.length;
             const slot = innerW / n;
             const barW = Math.max(2, Math.min(48, slot * 0.7));
@@ -1006,9 +1057,9 @@
 
             let note = `Rentang ${data.start} s/d ${data.end} (zona waktu ${data.timezone}).`;
             if (metric === 'revenue') {
-                note += data.has_rate
-                    ? ` Revenue = total putar × rate ${data.rate_country} ($${Number(data.rate).toLocaleString('en-US', { maximumFractionDigits: 4 })}); negara stream belum diketahui, dikaitkan ke ID.`
-                    : ` Belum ada rate untuk ${data.rate_country} di Settings > Revenue Estimation, jadi revenue tampil $0.`;
+                note += data.has_rate ?
+                    ` Revenue = total putar × rate ${data.rate_country} (${formatRupiah(data.rate, 4)}); negara stream belum diketahui, dikaitkan ke ID.` :
+                    ` Belum ada rate untuk ${data.rate_country} di Settings > Revenue Estimation, jadi revenue tampil Rp 0.`;
             }
             if (data.total_plays === 0) note += ' Belum ada putaran tercatat pada rentang ini.';
             document.getElementById('statsChartNote').textContent = note;
@@ -1021,7 +1072,7 @@
         });
 
         function deleteStream(id) {
-                    SwalDefault.fire({
+            SwalDefault.fire({
                 title: 'Delete Stream?',
                 text: 'This action cannot be undone.',
                 icon: 'warning',
@@ -1082,40 +1133,40 @@
         }
 
         function showAlert(message, type = 'success') {
-                    const Toast = Swal.mixin({
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 3000,
-                        timerProgressBar: true,
-                        didOpen: (toast) => {
-                            toast.addEventListener('mouseenter', Swal.stopTimer)
-                            toast.addEventListener('mouseleave', Swal.resumeTimer)
-                        }
-                    });
-
-                    Toast.fire({
-                        icon: type === 'danger' ? 'error' : (type === 'warning' ? 'warning' : 'success'),
-                        title: message,
-                        background: '#111827',
-                        color: '#fff'
-                    });
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true,
+                didOpen: (toast) => {
+                    toast.addEventListener('mouseenter', Swal.stopTimer)
+                    toast.addEventListener('mouseleave', Swal.resumeTimer)
                 }
+            });
+
+            Toast.fire({
+                icon: type === 'danger' ? 'error' : (type === 'warning' ? 'warning' : 'success'),
+                title: message,
+                background: '#111827',
+                color: '#fff'
+            });
+        }
 
         function checkPythonHealth() {
             const indicator = document.getElementById('pythonStatusIndicator');
             const text = document.getElementById('pythonStatusText');
             const lastCheck = document.getElementById('pythonLastCheck');
-            
+
             indicator.className = 'w-3 h-3 rounded-full bg-amber-500 animate-pulse';
             text.textContent = 'Checking...';
-            
+
             fetch(`${baseUrl}api/check-python-health`)
                 .then(res => res.json())
                 .then(data => {
                     const now = new Date().toLocaleTimeString();
                     lastCheck.textContent = now;
-                    
+
                     if (data.success && data.running) {
                         indicator.className = 'w-3 h-3 rounded-full bg-emerald-500';
                         text.textContent = 'Running';
@@ -1136,8 +1187,10 @@
             if (!confirm('Are you sure you want to stop the Python process? This will interrupt all active streams.')) {
                 return;
             }
-            
-            fetch(`${baseUrl}api/stop-python`, { method: 'POST' })
+
+            fetch(`${baseUrl}api/stop-python`, {
+                    method: 'POST'
+                })
                 .then(res => res.json())
                 .then(data => {
                     if (data.success) {
@@ -1155,7 +1208,7 @@
 
         function loadPythonLogs() {
             const logsContainer = document.getElementById('pythonLogs');
-            
+
             fetch(`${baseUrl}api/get-python-logs`)
                 .then(res => res.json())
                 .then(data => {
@@ -1177,6 +1230,7 @@
         }
 
         let lastRamAlertTime = 0;
+
         function checkRamUsage() {
             const totalEl = document.getElementById('ramTotal');
             const usedEl = document.getElementById('ramUsed');
@@ -1197,7 +1251,7 @@
                         usedEl.textContent = usedMB + ' MB';
                         percentEl.textContent = data.percent + '%';
                         progressEl.style.width = data.percent + '%';
-                        
+
                         if (data.percent > 90) {
                             indicatorEl.className = 'w-3 h-3 rounded-full bg-rose-500';
                             progressEl.className = 'h-full bg-gradient-to-r from-rose-500 to-red-600 rounded-full transition-all duration-500';
@@ -1232,25 +1286,25 @@
             // I will add a hidden field or fetch them.
             // Let's just try to send it and see if the controller has defaults or if we need to pass them.
             // Wait, the controller expects them. I should probably fetch them.
-            
+
             fetch(`${baseUrl}settings/send-ram-notification`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
-                },
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('RAM alert sent');
-                } else {
-                    console.error('Failed to send RAM alert:', data.message);
-                }
-            });
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content
+                    },
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('RAM alert sent');
+                    } else {
+                        console.error('Failed to send RAM alert:', data.message);
+                    }
+                });
         }
 
         document.getElementById('checkRamBtn').addEventListener('click', checkRamUsage);
-                setInterval(checkRamUsage, 10000); // Poll every 10s
-                checkRamUsage(); // Initial check on page load
-                    </script>
+        setInterval(checkRamUsage, 10000); // Poll every 10s
+        checkRamUsage(); // Initial check on page load
+    </script>
