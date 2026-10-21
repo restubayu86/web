@@ -128,6 +128,11 @@ RAM_CHECK_INTERVAL_SECONDS = 20
 MAX_WEB_RECOVERY_ATTEMPTS = 3
 AD_STUCK_WARNING_SECONDS = 90   # iklan yang berjalan lebih lama dari ini dilaporkan Watchdog sebagai peringatan
 TELEGRAM_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="bayzbot-telegram")
+# Perintah kontrol dijalankan satu per satu di thread sendiri: polling tidak terblokir saat ekstensi
+# lambat merespons, dan urutan perintah (mis. /pause lalu /play) tetap terjaga.
+TELEGRAM_COMMAND_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="bayzbot-telegram-cmd")
+TELEGRAM_API_BASE = os.environ.get("BAYZBOT_TELEGRAM_API", "https://api.telegram.org").rstrip("/")
+EXT_LOST_NOTIFY_SECONDS = float(os.environ.get("BAYZBOT_EXT_LOST_SECONDS", "20"))  # ekstensi terputus selama ini -> stream dianggap terhenti mendadak
 
 DEFAULT_CONFIG = {
     "total_loop": -1,               # -1 = infinity
@@ -190,102 +195,129 @@ def get_ram_threshold() -> float:
     return value if 1.0 <= value <= 100.0 else DEFAULT_RAM_ALERT_THRESHOLD
 
 
+TELEGRAM_TOKEN_RE = re.compile(r"^\d{5,}:[A-Za-z0-9_-]{20,}$")
+TELEGRAM_CHAT_RE = re.compile(r"^(-?\d{3,}|@[A-Za-z][A-Za-z0-9_]{4,})$")
+
+
+def _as_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def apply_runtime_settings(settings: dict) -> dict:
-    """Terapkan pengaturan dari web yang berlaku langsung (tanpa memulai playlist)."""
+    """Terapkan pengaturan dari web yang berlaku langsung (tanpa memulai playlist).
+    Kunci yang valid tetap diterapkan; bila ada yang tidak valid, ValueError dilempar setelahnya."""
     applied: dict = {}
+    errors: list[str] = []
+    changed: list[str] = []
+
     if "ram_threshold_percent" in settings:
         try:
             value = float(settings["ram_threshold_percent"])
+            if not 1.0 <= value <= 100.0:
+                raise ValueError("ram_threshold_percent harus 1 sampai 100.")
         except (TypeError, ValueError) as exc:
-            raise ValueError("ram_threshold_percent harus berupa angka.") from exc
-        if not 1.0 <= value <= 100.0:
-            raise ValueError("ram_threshold_percent harus 1 sampai 100.")
-        if value != get_ram_threshold():
-            state.config["ram_threshold_percent"] = value
-            save_config(state.config)
-            state.emit("log", {"text": f"Threshold RAM diubah menjadi {value:g}% (dari halaman Settings web)."})
-        applied["ram_threshold_percent"] = value
+            errors.append(str(exc) if "harus" in str(exc) else "ram_threshold_percent harus berupa angka.")
+        else:
+            if value != get_ram_threshold():
+                state.config["ram_threshold_percent"] = value
+                save_config(state.config)
+                state.emit("log", {"text": f"Threshold RAM diubah menjadi {value:g}% (dari halaman Settings web)."})
+            applied["ram_threshold_percent"] = value
+
+    if "telegram_bot_token" in settings:
+        token = str(settings["telegram_bot_token"] or "").strip()
+        if token and not TELEGRAM_TOKEN_RE.match(token):
+            errors.append("telegram_bot_token tidak valid (format 123456789:ABC...).")
+        else:
+            if token != str(state.config.get("telegram_bot_token") or ""):
+                state.config["telegram_bot_token"] = token
+                changed.append("token bot Telegram " + ("diisi" if token else "dikosongkan"))
+            applied["telegram_bot_token"] = bool(token)  # token tidak pernah dikembalikan
+    if "telegram_chat_id" in settings:
+        chat_id = str(settings["telegram_chat_id"] or "").strip()
+        if chat_id and not TELEGRAM_CHAT_RE.match(chat_id):
+            errors.append("telegram_chat_id tidak valid (angka, boleh diawali -, atau @namakanal).")
+        else:
+            if chat_id != str(state.config.get("telegram_chat_id") or ""):
+                state.config["telegram_chat_id"] = chat_id
+                changed.append(f"Chat ID Telegram {chat_id or 'dikosongkan'}")
+            applied["telegram_chat_id"] = chat_id
+    if "telegram_enabled" in settings:
+        enabled = _as_bool(settings["telegram_enabled"])
+        if enabled != bool(state.config.get("telegram_enabled", True)):
+            state.config["telegram_enabled"] = enabled
+            changed.append("notifikasi Telegram " + ("aktif" if enabled else "nonaktif"))
+        applied["telegram_enabled"] = enabled
+    if changed:
+        save_config(state.config)
+        state.emit("log", {"text": "Pengaturan Telegram dari halaman Settings web diterapkan: " + "; ".join(changed) + "."})
+
+    if errors:
+        raise ValueError(" ".join(errors))
     return applied
 
-# ---------------------------------------------------------------------------
-# IP Geolocation & Country Flags
-# ---------------------------------------------------------------------------
 
-_ip_cache = {}
-_country_flags = {
-    "US": "🇺🇸", "GB": "🇬🇧", "DE": "🇩🇪", "FR": "🇫🇷", "JP": "🇯🇵",
-    "CN": "🇨🇳", "IN": "🇮🇳", "BR": "🇧🇷", "RU": "🇷🇺", "AU": "🇦🇺",
-    "CA": "🇨🇦", "MX": "🇲🇽", "SG": "🇸🇬", "HK": "🇭🇰", "KR": "🇰🇷",
-    "ID": "🇮🇩", "TH": "🇹🇭", "MY": "🇲🇾", "PH": "🇵🇭", "VN": "🇻🇳",
-}
+_telegram_warned: dict[str, float] = {}
 
-def get_country_flag(country_code: str) -> str:
-    """Dapatkan emoji flag dari country code (contoh: 'US' -> '🇺🇸')."""
-    return _country_flags.get(country_code.upper(), "🌐")
 
-def get_public_ip() -> tuple[str | None, str | None]:
-    """Dapatkan public IP dan country code. Return (IP, country_code) atau (None, None) kalau gagal."""
-    if "ip_data" in _ip_cache:
-        return _ip_cache["ip_data"]
-    
-    try:
-        req = urllib.request.Request(
-            "http://ip-api.com/json/",
-            headers={"User-Agent": "BayzBot/1.0"}
-        )
-        with urllib.request.urlopen(req, timeout=5) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            ip = data.get("query")
-            country = data.get("countryCode")
-            result = (ip, country)
-            _ip_cache["ip_data"] = result
-            return result
-    except Exception:
-        pass
-    
-    return (None, None)
+def _telegram_warn(key: str, text: str, interval: float = 300.0) -> None:
+    """Catat peringatan Telegram ke LOG tanpa membanjiri: sekali per interval untuk tiap jenis."""
+    now = time.time()
+    if now - _telegram_warned.get(key, 0.0) < interval:
+        return
+    _telegram_warned[key] = now
+    token = str(state.config.get("telegram_bot_token") or "")
+    if token:
+        text = text.replace(token, "***")
+    state.emit("log", {"level": "WARNING", "text": f"Telegram: {text}"})
 
-def get_ip_display() -> str:
-    """Dapatkan display string untuk IP dengan country flag (contoh: '1.2.3.4 🇺🇸 (US)')."""
-    ip, country = get_public_ip()
-    if ip and country:
-        flag = get_country_flag(country)
-        return f"{ip} {flag} ({country})"
-    elif ip:
-        return ip
-    return "IP tidak terdeteksi"
 
-def fetch_youtube_title(url: str) -> dict | None:
-    """Fetch YouTube video title dan artist dari oEmbed API. Return {'title', 'artist'} atau None."""
-    try:
-        oembed_url = f"https://www.youtube.com/oembed?url={urllib.parse.quote(url)}&format=json"
-        req = urllib.request.Request(oembed_url)
-        with urllib.request.urlopen(req, timeout=5) as res:
-            data = json.loads(res.read().decode('utf-8'))
-            return {
-                "title": data.get("title", ""),
-                "artist": data.get("author_name", "")
-            }
-    except Exception:
-        return None
+def _telegram_error_reason(exc: Exception) -> str:
+    if isinstance(exc, urllib.error.HTTPError):
+        description = None
+        try:
+            description = json.loads(exc.read().decode("utf-8")).get("description")
+        except Exception:
+            pass
+        return f"HTTP {exc.code}" + (f" - {description}" if description else "")
+    return str(exc) or type(exc).__name__
 
-# ---------------------------------------------------------------------------
-# Telegram
-# ---------------------------------------------------------------------------
+
+def _describe_exception(exc: BaseException) -> str:
+    """Alasan yang bisa dibaca; TimeoutError kosong tidak boleh menghasilkan pesan kosong."""
+    if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+        return "waktu habis, ekstensi tidak merespons"
+    return str(exc) or type(exc).__name__
+
 
 def send_telegram_message(token: str, chat_id: str, text: str) -> bool:
     """Kirim pesan Telegram; panggilan ini dijalankan di thread worker."""
     if not token or not chat_id:
         return False
     try:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        url = f"{TELEGRAM_API_BASE}/bot{token}/sendMessage"
         data = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
             return resp.status == 200
     except Exception as exc:
-        print(f"[Telegram] Gagal mengirim notifikasi: {exc}", flush=True)
+        reason = _telegram_error_reason(exc)
+        _telegram_warn(f"send:{reason}", f"gagal mengirim pesan ({reason}).", 60)
         return False
+
+
+def telegram_get_me(token: str) -> tuple[bool, str]:
+    """Verifikasi token bot. Mengembalikan (berhasil, username atau alasan gagal)."""
+    try:
+        with urllib.request.urlopen(f"{TELEGRAM_API_BASE}/bot{token}/getMe", timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if data.get("ok"):
+            return True, str((data.get("result") or {}).get("username") or "bot")
+        return False, str(data.get("description") or "respons tidak valid")
+    except Exception as exc:
+        return False, _telegram_error_reason(exc)
 
 
 def notify_telegram(text: str, force: bool = False) -> None:
@@ -324,13 +356,14 @@ TELEGRAM_ACTION_LABELS = {
 }
 
 
-def telegram_control_streams(action: str, command: str, profile_arg: str | None = None) -> str:
+def telegram_control_streams(action: str, command: str, profile_arg: str | None = None) -> tuple[bool, str]:
     """Jalankan perintah Telegram lewat jalur yang sama dengan tombol di halaman web:
     perintah dikirim ke ekstensi dan status sesi diperbarui, sehingga halaman web
-    (yang memantau status sesi tiap beberapa detik) ikut berubah."""
+    (yang memantau status sesi tiap beberapa detik) ikut berubah.
+    Mengembalikan (berhasil, teks balasan)."""
     label = TELEGRAM_ACTION_LABELS[action]
     if profile_arg is not None and not profile_arg.isdigit():
-        return f"Format: {command} [id_profil_dolphin]"
+        return False, f"Format: {command} [id_profil_dolphin]"
 
     gui_stopped = False
     if action == "stop" and profile_arg is None and state.is_running:
@@ -345,7 +378,7 @@ def telegram_control_streams(action: str, command: str, profile_arg: str | None 
         reply = (f"Tidak ada stream aktif untuk profil {profile_arg}." if profile_arg
                  else "Tidak ada stream aktif.")
         state.emit("log", {"text": f"Telegram: {command} diterima - {reply}"})
-        return reply
+        return False, reply
 
     done, failed = [], []
     loop = state.loop
@@ -354,11 +387,11 @@ def telegram_control_streams(action: str, command: str, profile_arg: str | None 
             failed.append(f"{pid}: backend belum siap")
             continue
         try:
-            future = asyncio.run_coroutine_threadsafe(_control_web_playlist(pid, action), loop)
+            future = asyncio.run_coroutine_threadsafe(_control_web_playlist(pid, action, source="telegram"), loop)
             future.result(timeout=30)
             done.append(pid)
         except Exception as exc:  # RuntimeError dari ekstensi, TimeoutError, dll
-            failed.append(f"{pid}: {exc}")
+            failed.append(f"{pid}: {_describe_exception(exc)}")
 
     parts = []
     if gui_stopped:
@@ -368,109 +401,177 @@ def telegram_control_streams(action: str, command: str, profile_arg: str | None 
     if failed:
         parts.append("Gagal: " + "; ".join(failed))
     reply = " ".join(parts)
-    state.emit("log", {"text": f"Telegram: {command} diterima - {reply}"})
-    return reply
+    state.emit("log", {
+        "level": "WARNING" if failed else "INFO",
+        "text": f"Telegram: {command} diterima - {reply}",
+    })
+    return not failed, reply
+
+
+def _run_telegram_control(token: str, chat_id: str, command: str, arg: str | None) -> None:
+    """Jalankan satu perintah kontrol dan SELALU beri balasan (konfirmasi awal + hasil)."""
+    label = command + (f" {arg}" if arg else "")
+    send_telegram_message(token, chat_id, f"⏳ {label}: diproses...")
+    try:
+        ok, reply = telegram_control_streams(TELEGRAM_CONTROL_ACTIONS[command], command, arg)
+    except Exception as exc:
+        state.emit("log", {"level": "ERROR", "text": f"Telegram: {label} gagal dijalankan: {_describe_exception(exc)}"})
+        try:
+            traceback.print_exc()
+        except Exception:
+            pass
+        ok, reply = False, f"Terjadi kesalahan: {_describe_exception(exc)}"
+    send_telegram_message(token, chat_id, f"{'✅' if ok else '❌'} {reply}")
+
+
+def telegram_simple_response(cmd: str, chat_id: str) -> str:
+    """Balasan untuk perintah informasi (tanpa mengubah stream)."""
+    if cmd == "/status":
+        ram = get_ram_percent()
+        ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
+        gui_state = "Running" if state.is_running else "Stopped"
+        web_active = sum(1 for sess in state.web_sessions.values() if sess.get("active"))
+        response = (
+            f"BayzBot Status: OK\n"
+            f"RAM: {ram_str} (ambang {get_ram_threshold():g}%)\n"
+            f"GUI Stream: {gui_state} (loop {state.loop_count})\n"
+            f"Web Sessions Active: {web_active}\n"
+            f"Instances Connected: {len(state.clients)}"
+        )
+        for pid, sess in list(state.web_sessions.items()):
+            if not sess.get("active"):
+                continue
+            sess_state = "dijeda" if sess.get("paused") else ("memulai" if sess.get("starting") else "memutar")
+            response += (
+                f"\n- Profil {pid}: {sess_state}; {sess.get('current_song') or '-'}; "
+                f"iklan: {describe_ad_status(sess)}"
+            )
+        return response
+    if cmd == "/ram":
+        ram = get_ram_percent()
+        return f"RAM Usage: {f'{ram:.1f}%' if ram is not None else 'N/A'}"
+    if cmd == "/ping":
+        return "Pong! BayzBot aktif."
+    if cmd == "/id":
+        return f"Chat ID chat ini: {chat_id}"
+    if cmd == "/playlist":
+        total = len(state.playlist_urls)
+        idx = state.playlist_index
+        cur = state.play_order[idx] if 0 <= idx < len(state.play_order) else "-"
+        return f"Playlist: {total} lagu\nIndex: {idx + 1 if idx >= 0 else 0}/{total}\nCurrent: {cur}"
+    if cmd == "/loops":
+        return f"Loop count: {state.loop_count}"
+    if cmd == "/clients":
+        response = f"Instances connected: {len(state.clients)}"
+        for meta in state.clients.values():
+            response += f"\n- {meta.get('label') or meta.get('instance_id') or 'unknown'}"
+        return response
+    if cmd in ("/help", "/start"):
+        return (
+            "Perintah tersedia:\n"
+            "/status - Status bot & stream\n"
+            "/ram - Status RAM\n"
+            "/stopstream /stop [id_profil] - Hentikan stream\n"
+            "/pause [id_profil] - Jeda stream\n"
+            "/play /resume [id_profil] - Lanjutkan stream\n"
+            "/next /prev [id_profil] - Lagu berikutnya / sebelumnya\n"
+            "/restart [id_profil] - Mulai ulang playlist\n"
+            "/playlist - Info playlist\n"
+            "/loops - Info loop count\n"
+            "/clients - Daftar instance terhubung\n"
+            "/id - Tampilkan Chat ID chat ini\n"
+            "/ping - Cek bot aktif\n"
+            "/help - Bantuan"
+        )
+    return "Perintah tidak dikenal. Coba /help"
 
 
 def telegram_polling():
-    """Thread worker untuk polling perintah Telegram (long-polling getUpdates)."""
+    """Thread worker untuk polling perintah Telegram (long-polling getUpdates).
+    Semua masalah (belum dikonfigurasi, token ditolak, bentrok 409, chat tidak dikenal)
+    dicatat di LOG agar tidak gagal diam-diam."""
     offset = 0
+    verified_token = ""
+    warned_unconfigured = False
     while True:
         try:
             cfg = load_config()
             token = (cfg.get("telegram_bot_token") or "").strip()
             chat_id_cfg = str(cfg.get("telegram_chat_id") or "").strip()
             if not token or not chat_id_cfg:
+                verified_token = ""
+                if not warned_unconfigured:
+                    warned_unconfigured = True
+                    state.emit("log", {
+                        "level": "WARNING",
+                        "text": "Telegram belum dikonfigurasi di backend (token atau Chat ID kosong): perintah dan "
+                                "notifikasi Telegram tidak aktif. Isi Settings > Telegram di halaman web lalu Save.",
+                    })
                 time.sleep(10)
                 continue
+            warned_unconfigured = False
 
-            url = f"https://api.telegram.org/bot{token}/getUpdates?timeout=30"
+            if token != verified_token:
+                ok, info = telegram_get_me(token)
+                if not ok:
+                    _telegram_warn("getme", f"token tidak bisa diverifikasi ({info}); perintah dan notifikasi belum aktif.", 120)
+                    time.sleep(30)
+                    continue
+                verified_token = token
+                state.emit("log", {"text": f"Telegram aktif sebagai @{info}; perintah diterima dari chat {chat_id_cfg}."})
+
+            url = f"{TELEGRAM_API_BASE}/bot{token}/getUpdates?timeout=30"
             if offset:
                 url += f"&offset={offset}"
             with urllib.request.urlopen(url, timeout=40) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
-                if not data.get("ok"):
-                    time.sleep(5)
+            if not data.get("ok"):
+                time.sleep(5)
+                continue
+            for update in data.get("result", []):
+                try:
+                    offset = int(update.get("update_id", 0)) + 1
+                except Exception:
+                    offset = 0
+                msg = update.get("message") or update.get("edited_message") or {}
+                text = (msg.get("text") or "").strip()
+                if not text.startswith("/"):
                     continue
-                for update in data.get("result", []):
-                    try:
-                        offset = int(update.get("update_id", 0)) + 1
-                    except Exception:
-                        offset = 0
-                    msg = update.get("message") or update.get("edited_message") or {}
-                    text = (msg.get("text") or "").strip()
-                    if not text.startswith("/"):
-                        continue
-                    sender_chat_id = str((msg.get("chat") or {}).get("id", "")).strip()
-                    if sender_chat_id != chat_id_cfg:
-                        continue
-                    words = text.split()
-                    cmd = words[0].lower().split("@")[0]
-                    arg = words[1] if len(words) > 1 else None
-                    response = None
-                    if cmd == "/status":
-                        ram = get_ram_percent()
-                        ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
-                        gui_state = "Running" if state.is_running else "Stopped"
-                        web_active = sum(1 for s in state.web_sessions.values() if s.get("active"))
-                        clients = len(state.clients)
-                        response = (
-                            f"BayzBot Status: OK\n"
-                            f"RAM: {ram_str}\n"
-                            f"GUI Stream: {gui_state} (loop {state.loop_count})\n"
-                            f"Web Sessions Active: {web_active}\n"
-                            f"Instances Connected: {clients}"
-                        )
-                        for pid, sess in list(state.web_sessions.items()):
-                            if not sess.get("active"):
-                                continue
-                            sess_state = "dijeda" if sess.get("paused") else ("memulai" if sess.get("starting") else "memutar")
-                            response += (
-                                f"\n- Profil {pid}: {sess_state}; {sess.get('current_song') or '-'}; "
-                                f"iklan: {describe_ad_status(sess)}"
-                            )
-                    elif cmd == "/ram":
-                        ram = get_ram_percent()
-                        ram_str = f"{ram:.1f}%" if ram is not None else "N/A"
-                        response = f"RAM Usage: {ram_str}"
-                    elif cmd in TELEGRAM_CONTROL_ACTIONS:
-                        response = telegram_control_streams(TELEGRAM_CONTROL_ACTIONS[cmd], cmd, arg)
-                    elif cmd == "/ping":
-                        response = "Pong! BayzBot aktif."
-                    elif cmd == "/playlist":
-                        total = len(state.playlist_urls)
-                        idx = state.playlist_index
-                        cur = state.play_order[idx] if 0 <= idx < len(state.play_order) else "-"
-                        response = f"Playlist: {total} lagu\nIndex: {idx + 1 if idx >= 0 else 0}/{total}\nCurrent: {cur}"
-                    elif cmd == "/loops":
-                        response = f"Loop count: {state.loop_count}"
-                    elif cmd == "/clients":
-                        clients = len(state.clients)
-                        response = f"Instances connected: {clients}"
-                        if clients:
-                            for meta in state.clients.values():
-                                label = meta.get("label") or meta.get("instance_id") or "unknown"
-                                response += f"\n- {label}"
-                    elif cmd in ("/help", "/start"):
-                        response = (
-                            "Perintah tersedia:\n"
-                            "/status - Status bot & stream\n"
-                            "/ram - Status RAM\n"
-                            "/stopstream /stop [id_profil] - Hentikan stream\n"
-                            "/pause [id_profil] - Jeda stream\n"
-                            "/play /resume [id_profil] - Lanjutkan stream\n"
-                            "/next /prev [id_profil] - Lagu berikutnya / sebelumnya\n"
-                            "/restart [id_profil] - Mulai ulang playlist\n"
-                            "/playlist - Info playlist\n"
-                            "/loops - Info loop count\n"
-                            "/clients - Daftar instance terhubung\n"
-                            "/ping - Cek bot aktif\n"
-                            "/help - Bantuan"
-                        )
+                sender_chat_id = str((msg.get("chat") or {}).get("id", "")).strip()
+                words = text.split()
+                cmd = words[0].lower().split("@")[0]
+                arg = words[1] if len(words) > 1 else None
+                if sender_chat_id != chat_id_cfg:
+                    if cmd == "/id":
+                        send_telegram_message(token, sender_chat_id, telegram_simple_response(cmd, sender_chat_id))
                     else:
-                        response = "Perintah tidak dikenal. Coba /help"
-                    if response:
-                        send_telegram_message(token, sender_chat_id, response)
+                        _telegram_warn(
+                            f"unauth:{sender_chat_id}",
+                            f"perintah {cmd} ditolak dari chat {sender_chat_id}; chat terdaftar {chat_id_cfg}. "
+                            f"Samakan Chat ID di Settings (kirim /id ke bot untuk melihat ID chat).",
+                            60,
+                        )
+                    continue
+                if cmd in TELEGRAM_CONTROL_ACTIONS:
+                    TELEGRAM_COMMAND_EXECUTOR.submit(_run_telegram_control, token, sender_chat_id, cmd, arg)
+                    continue
+                send_telegram_message(token, sender_chat_id, telegram_simple_response(cmd, sender_chat_id))
+        except urllib.error.HTTPError as exc:
+            reason = _telegram_error_reason(exc)
+            if exc.code == 409:
+                _telegram_warn(
+                    "conflict",
+                    "getUpdates ditolak (409 Conflict): bot yang sama sedang dipolling oleh backend/instance lain "
+                    "atau webhook aktif. Hentikan instance lain (stop_all.bat) agar perintah diproses di sini.",
+                )
+                time.sleep(30)
+            elif exc.code in (401, 404):
+                verified_token = ""
+                _telegram_warn("auth", f"token ditolak ({reason}); periksa token bot di Settings.", 120)
+                time.sleep(60)
+            else:
+                _telegram_warn(f"poll:{exc.code}", f"polling gagal ({reason}).", 120)
+                time.sleep(5)
         except Exception as e:
             print(f"[Telegram Polling] Error: {e}", flush=True)
             try:
@@ -925,6 +1026,7 @@ async def _start_web_playlist(
             "level": "ERROR",
             "text": f"Stream profil Dolphin {profile_id} gagal dimulai: {exc}"
         })
+        notify_telegram(f"[BayzBot] Stream profil Dolphin {profile_id} GAGAL dimulai: {_describe_exception(exc)}")
         raise
     if not result.get("ok"):
         session["active"] = False
@@ -934,12 +1036,24 @@ async def _start_web_playlist(
             "text": f"Stream profil Dolphin {profile_id} gagal dimulai: "
                     f"{result.get('error') or 'perintah ditolak'}"
         })
+        notify_telegram(
+            f"[BayzBot] Stream profil Dolphin {profile_id} GAGAL dimulai: "
+            f"{result.get('error') or 'perintah ditolak'}"
+        )
         raise RuntimeError(result.get("error") or "Ekstensi menolak perintah playlist.")
     session["starting"] = False
     state.emit("log", {
         "text": f"Stream profil Dolphin {profile_id} dimulai "
                 f"({len(order)} lagu; watchdog setiap {session['watchdog_interval']} detik)."
     })
+    first_url = order[0] if order else None
+    first_meta = (session.get("track_metadata") or {}).get(first_url) or {}
+    first_song = (f"{first_meta.get('title')} - {first_meta.get('artist') or '-'}"
+                  if first_meta.get("title") else (first_url or "-"))
+    notify_telegram(
+        f"[BayzBot] Stream dimulai: profil Dolphin {profile_id}\n"
+        f"Playlist: {len(order)} lagu\nLagu pertama: {first_song}"
+    )
 
     return {
         "success": True,
@@ -951,25 +1065,39 @@ async def _start_web_playlist(
     }
 
 
-async def _stop_web_playlist(profile_id: str) -> dict:
+async def _stop_web_playlist(profile_id: str, source: str = "web") -> dict:
     session = state.web_sessions.get(profile_id)
+    was_active = bool(session and session.get("active"))
     if session:
         session["active"] = False
         state.emit("log", {
             "text": f"Stream profil Dolphin {profile_id} dihentikan; watchdog berhenti memantau."
         })
-    result = await _send_profile_command(profile_id, "stop")
-    if not result.get("ok"):
-        raise RuntimeError(result.get("error") or "Ekstensi menolak perintah berhenti.")
+    # Perintah dari Telegram sudah mendapat balasan sendiri; sumber lain (web/API) diberi notifikasi.
+    notify_stop = was_active and source != "telegram"
+    origin = "dari halaman web" if source == "web" else f"oleh {source}"
+    try:
+        result = await _send_profile_command(profile_id, "stop")
+        if not result.get("ok"):
+            raise RuntimeError(result.get("error") or "Ekstensi menolak perintah berhenti.")
+    except Exception as exc:
+        if notify_stop:
+            notify_telegram(
+                f"[BayzBot] Stream profil Dolphin {profile_id} dihentikan {origin}, "
+                f"tetapi ekstensi tidak merespons: {_describe_exception(exc)}"
+            )
+        raise
+    if notify_stop:
+        notify_telegram(f"[BayzBot] Stream profil Dolphin {profile_id} dihentikan {origin}.")
     return {"success": True, "profile_id": profile_id}
 
 
-async def _control_web_playlist(profile_id: str, action: str) -> dict:
+async def _control_web_playlist(profile_id: str, action: str, source: str = "web") -> dict:
     session = state.web_sessions.get(profile_id)
     if action == "stop":
         if not session or not session.get("active"):
             return {"success": True, "profile_id": profile_id, "action": "stop"}
-        return await _stop_web_playlist(profile_id)
+        return await _stop_web_playlist(profile_id, source)
 
     if not session or not session.get("active"):
         raise RuntimeError("Tidak ada playlist BayzBot aktif untuk profil ini.")
@@ -1009,6 +1137,7 @@ async def _handle_web_playlist_completed(profile_id: str):
         state.emit("log", {
             "text": f"Playlist profil Dolphin {profile_id} selesai ({target} loop)."
         })
+        notify_telegram(f"[BayzBot] Stream profil Dolphin {profile_id} selesai: playlist diputar {target} loop.")
         return
 
     order = _next_web_order(session)
@@ -1027,6 +1156,10 @@ async def _handle_web_playlist_completed(profile_id: str):
         state.emit("log", {
             "text": f"Playlist profil Dolphin {profile_id} gagal mengulang: {exc}"
         })
+        notify_telegram(
+            f"[BayzBot] Stream profil Dolphin {profile_id} berhenti: playlist gagal diulang "
+            f"({_describe_exception(exc)})."
+        )
         return
     if not result.get("ok"):
         session["active"] = False
@@ -1157,6 +1290,11 @@ async def ws_handler(ws):
                     session["received_status"] = True
                     if payload.get("isPlaying"):
                         session["not_playing_since"] = None
+                        if session.get("recovery_attempts"):
+                            notify_telegram(
+                                f"[BayzBot] Stream profil Dolphin {browser_profile_id} kembali memutar "
+                                f"setelah pemulihan Watchdog."
+                            )
                         session["recovery_attempts"] = 0
                         title = payload.get("title")
                         artist = payload.get("artist")
@@ -1489,8 +1627,13 @@ class BotAPIHandler(BaseHTTPRequestHandler):
                     "watchdog_interval": watchdog_interval,
                     "ad_skip_delay_seconds": ad_skip_delay,
                 }
-                if "ram_threshold_percent" in settings:
-                    apply_runtime_settings({"ram_threshold_percent": settings["ram_threshold_percent"]})
+                runtime_keys = ("ram_threshold_percent", "telegram_bot_token", "telegram_chat_id", "telegram_enabled")
+                runtime = {key: settings[key] for key in runtime_keys if key in settings}
+                if runtime:
+                    try:
+                        apply_runtime_settings(runtime)
+                    except ValueError as exc:
+                        state.emit("log", {"level": "WARNING", "text": f"Pengaturan dari web sebagian ditolak: {exc}"})
                 future = asyncio.run_coroutine_threadsafe(
                     _start_web_playlist(profile_id, urls, normalized_settings, normalized_tracks), state.loop
                 )
@@ -1501,6 +1644,27 @@ class BotAPIHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             print(f"[HTTP API] Request gagal: {exc}", flush=True)
             self._json_response(500, {"success": False, "message": "Terjadi kesalahan internal BayzBot."})
+
+
+def _check_extension_link(profile_id: str, session: dict, now: float) -> None:
+    """Deteksi stream terhenti mendadak karena ekstensi/browser terputus. Terputus sesaat
+    (service worker restart) diabaikan; baru dilaporkan setelah EXT_LOST_NOTIFY_SECONDS."""
+    if _connections_for_profile(profile_id):
+        if session.get("ext_lost_notified"):
+            state.emit("log", {"text": f"Ekstensi profil Dolphin {profile_id} tersambung kembali."})
+            notify_telegram(f"[BayzBot] Ekstensi profil Dolphin {profile_id} tersambung kembali; Watchdog melanjutkan pemantauan.")
+        session["ext_lost_since"] = None
+        session["ext_lost_notified"] = False
+        return
+    if session.get("ext_lost_since") is None:
+        session["ext_lost_since"] = now
+        return
+    if not session.get("ext_lost_notified") and now - session["ext_lost_since"] >= EXT_LOST_NOTIFY_SECONDS:
+        session["ext_lost_notified"] = True
+        message = (f"Stream profil Dolphin {profile_id} terhenti mendadak: ekstensi/browser terputus "
+                   f"lebih dari {EXT_LOST_NOTIFY_SECONDS} detik.")
+        state.emit("log", {"level": "ERROR", "text": message})
+        notify_telegram(f"[BayzBot] {message}")
 
 
 def _emit_watchdog_status(profile_id: str, session: dict, now: float, condition: str) -> None:
@@ -1554,7 +1718,10 @@ async def watchdog_loop():
 
         now = time.time()
         for profile_id, session in list(state.web_sessions.items()):
-            if not session.get("active") or session.get("starting"):
+            if not session.get("active"):
+                continue
+            _check_extension_link(profile_id, session, now)
+            if session.get("starting"):
                 continue
             if session.get("paused"):
                 _emit_watchdog_status(profile_id, session, now, "dijeda")
@@ -1584,6 +1751,12 @@ async def watchdog_loop():
                             f"tidak aktif selama lebih dari {session_interval} detik "
                             f"(percobaan pemulihan {session['recovery_attempts']}/{MAX_WEB_RECOVERY_ATTEMPTS})."
                 })
+                # Ekstensi yang sedang terputus dilaporkan terpisah oleh _check_extension_link; jangan dobel.
+                if session["recovery_attempts"] == 1 and session.get("ext_lost_since") is None:
+                    notify_telegram(
+                        f"[BayzBot] Stream profil Dolphin {profile_id} berhenti memutar secara tiba-tiba "
+                        f"(tidak ada playback > {session_interval} detik). Watchdog mencoba memulihkan."
+                    )
                 try:
                     result = await _send_profile_command(profile_id, "play")
                     if not result.get("ok"):

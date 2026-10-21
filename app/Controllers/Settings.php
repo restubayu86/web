@@ -46,26 +46,32 @@ class Settings extends BaseController
     }
 
     /**
-     * Kirim pengaturan yang berlaku langsung (ambang RAM) ke backend Python supaya
-     * LOG dan peringatan Telegram memakai nilai yang sama dengan halaman ini.
+     * Kirim pengaturan yang berlaku langsung (ambang RAM, Telegram) ke backend Python supaya
+     * perintah, notifikasi, dan peringatan memakai nilai yang sama dengan halaman ini.
      * Kalau backend belum berjalan, nilainya ikut terkirim saat stream dijalankan.
+     *
+     * @return string|null pesan galat bila backend menolak sebagian pengaturan (mis. token tidak valid)
      */
-    private function pushRuntimeSettingsToBackend(): void
+    private function pushRuntimeSettingsToBackend(): ?string
     {
         $url = BotBridge::normalizeUrl($this->settingsModel->getSetting('bot_bridge_url'));
         $token = trim((string) $this->settingsModel->getSetting('bot_bridge_token'));
         if ($url === null || $token === '') {
-            return;
+            return null;
         }
 
-        $result = (new BotBridge())->updateSettings($url, $token, [
-            'ram_threshold_percent' => $this->settingsModel->getRamThreshold(),
-        ]);
-        if (!($result['success'] ?? false)) {
-            log_message('warning', 'Threshold RAM belum terkirim ke backend: {msg}', [
-                'msg' => $result['message'] ?? 'tidak ada respons',
-            ]);
+        $result = (new BotBridge())->updateSettings($url, $token, $this->settingsModel->getBackendRuntimeSettings());
+        if ($result['success'] ?? false) {
+            return null;
         }
+
+        log_message('warning', 'Pengaturan belum terkirim ke backend: {msg} (HTTP {status})', [
+            'msg' => $result['message'] ?? 'tidak ada respons',
+            'status' => $result['status'] ?? 'n/a',
+        ]);
+
+        // 422 = backend aktif tetapi menolak nilainya; selain itu backend belum berjalan (terkirim saat stream dimulai).
+        return ($result['status'] ?? 0) === 422 ? 'Backend menolak pengaturan: ' . ($result['message'] ?? '') : null;
     }
 
     public function save()
@@ -130,8 +136,8 @@ class Settings extends BaseController
         $this->settingsModel->setSetting('revenue_rates', json_encode($revenueRates));
 
         $redirect = redirect()->back()->with('message', 'Settings saved successfully!');
-        $this->pushRuntimeSettingsToBackend();
-        $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null, $ramThresholdError ?? null]);
+        $backendError = $this->pushRuntimeSettingsToBackend();
+        $errors = array_filter([$localUrlError ?? null, $botBridgeUrlError ?? null, $ramThresholdError ?? null, $backendError]);
         if ($errors !== []) {
             $redirect->with('error', implode(' ', $errors));
         }

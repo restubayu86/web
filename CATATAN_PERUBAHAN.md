@@ -76,6 +76,20 @@
 - **LOG/Watchdog**: Watchdog melapor tiap interval (juga saat dijeda dan untuk playlist GUI) lengkap dengan status iklan
   (iklan terdeteksi, keputusan putar penuh/skip, menunggu Skip, Skip diklik, total di-skip/diputar penuh). Iklan > 90 detik ditandai WARNING.
 
+## Telegram: perintah, balasan, dan notifikasi
+- **Akar masalah**: token/Chat ID Telegram hanya disimpan di halaman Settings web (database PHP), sedangkan backend membaca
+  `gui_config.json` sendiri yang kosong. Akibatnya polling Telegram menganggur tanpa log, perintah tidak diproses, dan notifikasi
+  start/stop tidak pernah terkirim. Kini Settings web mengirim token, Chat ID, dan sakelar notifikasi ke backend (`POST /api/settings`
+  saat Save, dan ikut `/api/play`); backend menyimpannya di `gui_config.json` dan langsung aktif tanpa restart.
+- **Balasan selalu ada**: perintah kontrol (`/pause`, `/play`, `/next`, `/prev`, `/restart`, `/stop`) mengirim konfirmasi awal lalu hasil
+  (✅/❌ dengan alasan jelas) dan dijalankan di thread sendiri agar polling tidak terblokir. Perintah dari chat tidak terdaftar dicatat di
+  LOG (kirim `/id` ke bot untuk melihat Chat ID).
+- **Diagnosis di LOG**: Telegram belum dikonfigurasi, token ditolak, bentrok 409 (instance lain memakai bot yang sama), gagal kirim pesan
+  (beserta alasan dari Telegram), dan verifikasi bot saat aktif (`Telegram aktif sebagai @bot`). Token tidak pernah dicatat.
+- **Notifikasi**: stream dimulai (profil, jumlah lagu, lagu pertama) atau gagal dimulai, stream dihentikan dari web (dari Telegram cukup
+  balasan), ekstensi/browser terputus > 20 detik (terhenti mendadak) dan tersambung kembali, playback berhenti tiba-tiba lalu pulih atau
+  pemulihan dihentikan, playlist selesai atau gagal diulang.
+
 ## Halaman Chromium bergaya halaman Browser
 - Header, kartu statistik (Total/Running/Stopped), filter All/Running/Stopped, indikator auto-refresh, tabel dengan checkbox
   (Name, Instance, Proxy, Playlist, Actions), pager 10 baris/halaman, bulk bar Start/Stop, toast dan dialog SweetAlert,
