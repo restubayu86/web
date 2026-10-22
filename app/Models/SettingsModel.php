@@ -38,6 +38,20 @@ class SettingsModel extends Model
         return ($threshold >= 1.0 && $threshold <= 100.0) ? $threshold : 85.0;
     }
 
+    /**
+     * Pengaturan yang diteruskan ke backend Python (halaman Settings web adalah satu-satunya
+     * tempat mengisinya): ambang RAM dan konfigurasi Telegram untuk perintah serta notifikasi.
+     */
+    public function getBackendRuntimeSettings(): array
+    {
+        return [
+            'ram_threshold_percent' => $this->getRamThreshold(),
+            'telegram_bot_token' => trim((string) $this->getSetting('telegram_bot_token')),
+            'telegram_chat_id' => trim((string) $this->getSetting('telegram_chat_id')),
+            'telegram_enabled' => $this->getSetting('telegram_notifications_enabled') === '1',
+        ];
+    }
+
     public function setSetting($key, $value)
     {
         $existing = $this->where('key', $key)->first();

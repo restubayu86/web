@@ -434,7 +434,7 @@ class Stream extends BaseController
                     'shuffle' => $settings->getSetting('shuffle_playlist') === '1',
                     'watchdog_interval' => (int) ($settings->getSetting('watchdog_interval') ?? 30),
                     'ad_skip_delay_seconds' => (int) ($settings->getSetting('ad_skip_delay_seconds') ?? 0),
-                    'ram_threshold_percent' => $settings->getRamThreshold(),
+                    ...$settings->getBackendRuntimeSettings(),
                 ],
             ]);
         } else {
