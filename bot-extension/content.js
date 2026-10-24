@@ -1,4 +1,15 @@
 (() => {
+  // Jangan jalankan dua instance di tab yang sama (injeksi manual + manifest). Instance lama yang
+  // konteks ekstensinya sudah tidak valid (ekstensi di-reload) tidak dihitung.
+  if (typeof globalThis.__bayzbotAlive === "function") {
+    try {
+      if (globalThis.__bayzbotAlive()) return;
+    } catch (_error) {
+      // instance lama rusak: lanjutkan sebagai instance baru
+    }
+  }
+  globalThis.__bayzbotAlive = () => Boolean(chrome.runtime?.id);
+
   const PLAYBACK_KEY = "playbackState";
   const STATUS_INTERVAL_MS = 2000;
   const TRACK_TIMEOUT_MS = 30000;

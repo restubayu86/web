@@ -5,7 +5,9 @@
   "description": "Connects Dolphin browser profiles to the local BayzBot playback backend.",
   "permissions": [
     "alarms",
-    "storage"
+    "scripting",
+    "storage",
+    "tabs"
   ],
   "host_permissions": [
     "http://localhost:8765/*",
