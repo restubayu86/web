@@ -49,6 +49,14 @@
 ## Dokumentasi
 - 24 file di `docs/` + `QUICKSTART.md` + `DEBUG_PROFILE_PAGE.md` diganti dengan `README.md` dan `docs/API.md` (dibuat dari `Routes.php`).
 
+## Pengiriman perintah ke tab YouTube Music
+- Galat `Could not establish connection. Receiving end does not exist.` saat memulai stream: ekstensi hanya menunggu 10 detik sampai
+  halaman siap. Kini `background.js` sabar sampai 40 detik (backend menunggu 50 detik) dan memulihkan bertahap, masing-masing sekali:
+  tab ter-discard di-reload, tab yang terjebak di halaman bukan YouTube Music (persetujuan/login) diarahkan ke lagu pertama, dan tab
+  yang dibuka sebelum ekstensi dimuat disuntik content script secara manual setelah 3 detik tanpa respons.
+- Bila tetap gagal, pesan galat di LOG menyebut status tab, halaman yang sedang terbuka, dan saran perbaikan.
+- Manifest menambah izin `scripting` dan `tabs`; muat ulang ekstensi di tiap profil. `content.js` menolak berjalan ganda di tab yang sama.
+
 ## Penamaan file (lebih umum)
 | Lama | Baru |
 |---|---|

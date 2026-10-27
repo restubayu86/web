@@ -130,27 +130,102 @@ function isPlayerUrl(value) {
     }
 }
 
+// Perintah ke tab pemutar: sabar sampai DELIVERY_TIMEOUT_MS (backend menunggu 50 detik) dan memulihkan
+// penyebab umum "Receiving end does not exist": halaman masih memuat (proxy lambat, profil baru), tab
+// lama yang dibuka sebelum ekstensi dimuat, tab ter-discard, atau tab berada di halaman bukan YouTube Music
+// (persetujuan/login/error jaringan). Tiap pemulihan dicoba sekali.
+const DELIVERY_TIMEOUT_MS = 40000;
+const DELIVERY_POLL_MS = 500;
+const LOADING_PATIENCE_MS = 20000; // tab 'loading' selama ini masih dianggap wajar
+const RECOVERY_GRACE_MS = 3000; // tab harus 'complete' selama ini tanpa respons sebelum disuntik/diarahkan ulang
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 async function findOrOpenPlayerTab(url) {
     const tabs = await chrome.tabs.query({ url: ["https://music.youtube.com/*", "https://www.youtube.com/*"] });
-    if (tabs.length > 0) return tabs[0];
+    if (tabs.length > 0) {
+        // utamakan tab yang hidup (tidak ter-discard) dan paling baru dipakai
+        tabs.sort((a, b) => Number(Boolean(a.discarded)) - Number(Boolean(b.discarded)) || (b.lastAccessed || 0) - (a.lastAccessed || 0));
+        return tabs[0];
+    }
     if (!isPlayerUrl(url)) {
         throw new Error("Playlist URL is not a supported YouTube Music page.");
     }
     return chrome.tabs.create({ url, active: true });
 }
 
-async function sendCommandToTab(tab, command) {
-    for (let attempt = 0; attempt < 20; attempt++) {
+function describeTab(tab) {
+    let where = "alamat tidak diketahui";
+    try {
+        const url = new URL(tab.url);
+        where = `${url.hostname}${url.pathname}`;
+    } catch {
+        // tab.url bisa kosong untuk halaman internal
+    }
+    return `status tab: ${tab.status || "?"}, halaman: ${where}`;
+}
+
+async function sendCommandToTab(initialTab, command, firstUrl) {
+    const startedAt = Date.now();
+    let tab = initialTab;
+    let lastError = null;
+    const tried = { reload: false, navigate: false, inject: false };
+    let completeSince = null;
+
+    while (Date.now() - startedAt < DELIVERY_TIMEOUT_MS) {
+        try {
+            tab = await chrome.tabs.get(tab.id);
+        } catch {
+            // tab ditutup saat menunggu: buka lagi
+            tab = await chrome.tabs.create({ url: firstUrl, active: true });
+            await sleep(DELIVERY_POLL_MS);
+            continue;
+        }
+
         try {
             return await chrome.tabs.sendMessage(tab.id, command);
         } catch (error) {
-            if (attempt === 19) throw error;
-            await new Promise(resolve => setTimeout(resolve, 500));
-            const current = await chrome.tabs.get(tab.id);
-            if (current.status === "complete") continue;
+            lastError = error;
         }
+
+        const elapsed = Date.now() - startedAt;
+        if (tab.status === "complete") {
+            completeSince ??= Date.now();
+        } else {
+            completeSince = null;
+        }
+        const settled = completeSince !== null && Date.now() - completeSince >= RECOVERY_GRACE_MS;
+        if (tab.discarded && !tried.reload) {
+            tried.reload = true;
+            await chrome.tabs.reload(tab.id).catch(() => {});
+        } else if (tab.status === "loading" && elapsed < LOADING_PATIENCE_MS) {
+            // masih memuat: tunggu saja (bukan kegagalan)
+        } else if (tab.status === "complete" && !settled) {
+            // baru selesai dimuat: beri waktu content script mendaftar sebelum menyuntik ulang
+        } else if (!isPlayerUrl(tab.url) && !tried.navigate && isPlayerUrl(firstUrl)) {
+            tried.navigate = true;
+            await chrome.tabs.update(tab.id, { url: firstUrl, active: true }).catch(() => {});
+        } else if (isPlayerUrl(tab.url) && !tried.inject) {
+            // tab dibuka sebelum ekstensi dimuat: suntikkan content script secara manual
+            tried.inject = true;
+            try {
+                await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+            } catch (injectError) {
+                lastError = injectError;
+            }
+        }
+        await sleep(DELIVERY_POLL_MS);
     }
-    throw new Error("BayzBot player content script did not respond.");
+
+    let hint = "Content script pemutar tidak aktif; muat ulang ekstensi dan tab YouTube Music.";
+    if (!isPlayerUrl(tab.url)) {
+        hint = "Tab tidak berada di YouTube Music (mungkin halaman persetujuan/login atau gagal memuat lewat proxy); buka music.youtube.com di profil ini.";
+    } else if (tab.status === "loading") {
+        hint = "Halaman YouTube Music tidak selesai dimuat (koneksi atau proxy terlalu lambat).";
+    }
+    throw new Error(
+        `Tab YouTube Music tidak merespons setelah ${Math.round(DELIVERY_TIMEOUT_MS / 1000)} detik ` +
+        `(${describeTab(tab)}). ${hint} [${lastError?.message || "tanpa detail"}]`
+    );
 }
 
 async function handleCommand(command) {
@@ -158,7 +233,7 @@ async function handleCommand(command) {
     try {
         const firstUrl = Array.isArray(command.urls) ? command.urls[0] : "";
         const tab = await findOrOpenPlayerTab(firstUrl);
-        result = await sendCommandToTab(tab, command);
+        result = await sendCommandToTab(tab, command, firstUrl);
     } catch (error) {
         result = { ok: false, error: error.message || "Could not deliver command to the player." };
     }
