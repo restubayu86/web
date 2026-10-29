@@ -105,6 +105,23 @@
 - Form "Create profile" dan "Chromium executable" pindah ke modal (tombol NEW PROFILE dan ikon gerigi); edit nama/proxy/playlist
   lewat modal (ikon pensil). Tidak ada perubahan API/controller.
 
+## Algoritma iklan v3 (batas skip + 1 detik, kembali ke URL playlist)
+- **Batas T** = Settings "Skip Iklan Delay (detik)". Iklan berdurasi <= T diputar sampai selesai (tombol Skip tidak diklik).
+  Iklan > T ditindak pada detik ke-(T+1) sejak iklan itu terdeteksi. Iklan tidak di-mute/dipercepat.
+- **Banyak iklan**: tiap iklan punya hitungan sendiri (iklan 1, 2, ... dalam satu rangkaian). Iklan baru dikenali dari perubahan
+  sumber video/durasi/waktu mundur; penanda iklan harus hilang 2 poll berturut-turut sebelum iklan dianggap selesai.
+  Durasi tak terbaca (NaN/Infinity) dianggap panjang (`adDecision` dengan `assumed`).
+- **Aksi pada detik ke-(T+1)**: klik tombol Skip (maks 3 percobaan, tiap percobaan lebih "keras": click, urutan pointer, elemen induk).
+  Bila tidak ada tombol, tombol non-aktif >= 3 detik, atau 3 klik gagal -> **kembali ke URL lagu playlist** (`adForceReload`).
+  Dibatasi 2 kali per 3 menit (disimpan di `sessionStorage`); sesudah itu `adReloadLimit` dan iklan dibiarkan selesai.
+- **Iklan di ujung lagu**: kembali ke lagu playlist BERIKUTNYA (bukan mengulang lagu yang sudah selesai).
+- **Lagu playlist dijaga**: setelah iklan, lagu yang diputar dibandingkan dengan playlist (ID video). Bila berbeda > 2 detik
+  (di luar iklan dan masa tenggang 4 detik) dikembalikan (maks 3 kali per menit, lalu lagu dilewati). Lagu yang terjeda sendiri
+  setelah iklan dilanjutkan otomatis (kecuali dijeda lewat perintah).
+- **LOG/Watchdog**: event baru `adDecision`, `adWaiting`, `adForceReload`, `adReloadLimit`; ringkasan Watchdog/`/status` menampilkan
+  "dimuat ulang N". Status "sedang iklan" dibersihkan saat halaman dimuat ulang. Tiap iklan mengirim `adDebug` untuk diagnosis.
+- **Tes**: `tests/extension/run.js` (jsdom, 15 skenario) dan `tests/extension/test_backend_ads.py` (11 tes). Lihat komentar di berkas.
+
 ## Belum ditangani
 - Token Dolphin/Telegram masih plaintext di tabel `settings`.
 - Belum ada kepemilikan data per user; `/users` dan `/log` masih stub.
