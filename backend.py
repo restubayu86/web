@@ -1169,7 +1169,9 @@ async def _handle_web_playlist_completed(profile_id: str):
         })
 
 
-AD_EVENTS = {"adDetected", "adDecision", "adWaiting", "adSkipClicked", "adUnskippable", "adEnded"}
+AD_EVENTS = {"adDetected", "adDecision", "adWaiting", "adSkipClicked", "adSkipFailed", "adUnskippable",
+             "adForceReload", "adReloadLimit", "adDebug", "adAfterSong", "adEnded"}
+TRACK_EVENTS = {"trackMismatch", "trackRestored", "trackMismatchFailed", "playResumedAfterAd"}
 AD_KIND_LABELS = {"short": "pendek", "long": "panjang"}
 
 
@@ -1185,7 +1187,8 @@ def describe_ad_status(holder: dict) -> str:
     totals = (
         f"total {int(holder.get('ads_detected', 0))}, "
         f"di-skip {int(holder.get('ads_skipped', 0))}, "
-        f"diputar penuh {int(holder.get('ads_played_full', 0))}"
+        f"diputar penuh {int(holder.get('ads_played_full', 0))}, "
+        f"dimuat ulang {int(holder.get('ads_reloaded', 0))}"
     )
     if holder.get("ad_active"):
         started = holder.get("ad_started_at")
@@ -1219,6 +1222,7 @@ def log_ad_event(ws, msg) -> None:
     duration = msg.get("durationSec")
     duration_text = f", {float(duration):.1f} detik" if isinstance(duration, (int, float)) and duration > 0 else ""
     label = f"iklan ke-{index} ({kind}{duration_text})"
+    level = "INFO"
 
     if ev == "adDetected":
         holder["ads_detected"] = int(holder.get("ads_detected", 0)) + 1
@@ -1234,13 +1238,50 @@ def log_ad_event(ws, msg) -> None:
             text = f"{label} tidak lebih lama dari batas skip {threshold:g} detik -> diputar sampai selesai."
         else:
             holder["ad_phase"] = "akan di-skip"
-            text = f"{label} lebih lama dari batas skip {threshold:g} detik -> akan di-skip."
+            assumed = " (durasi tidak terbaca, dianggap panjang)" if msg.get("assumed") else ""
+            text = f"{label} lebih lama dari batas skip {threshold:g} detik{assumed} -> di-skip pada detik ke-{threshold + 1:g}."
     elif ev == "adWaiting":
-        holder["ad_phase"] = "menunggu tombol Skip"
-        text = f"{label}: menunggu tombol Skip muncul."
+        try:
+            wait = float(msg.get("waitSeconds") or 0)
+        except (TypeError, ValueError):
+            wait = 0
+        holder["ad_phase"] = f"menunggu sampai detik ke-{wait:g}"
+        text = f"{label}: menunggu sampai detik ke-{wait:g} untuk di-skip."
     elif ev == "adSkipClicked":
         holder["ad_phase"] = "tombol Skip diklik"
-        text = f"tombol Skip {label} diklik ({_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
+        try:
+            attempt = int(msg.get("attempt") or 1)
+        except (TypeError, ValueError):
+            attempt = 1
+        again = f"percobaan ke-{attempt}, " if attempt > 1 else ""
+        text = f"tombol Skip {label} diklik ({again}{_ad_seconds(msg.get('waitedMs'))} detik sejak iklan muncul)."
+    elif ev == "adSkipFailed":
+        level = "WARNING"
+        holder["ad_phase"] = "skip gagal, memuat ulang playlist"
+        text = (f"{label}: tombol Skip tidak berhasil setelah {int(msg.get('attempts') or 0)} percobaan; "
+                f"mencoba kembali ke URL lagu playlist.")
+    elif ev == "adDebug":
+        text = f"debug iklan ke-{index}: {str(msg.get('snapshot') or '')[:900]}"
+    elif ev == "adForceReload":
+        level = "WARNING"
+        holder["ads_reloaded"] = int(holder.get("ads_reloaded", 0)) + 1
+        # Halaman dimuat ulang sehingga adEnded dari halaman ini tidak akan pernah terkirim.
+        holder.update(ad_active=False, ad_phase=None, ad_started_at=None)
+        reasons = {
+            "tanpa-tombol-skip": "tidak punya tombol Skip",
+            "tombol-nonaktif": "tombol Skip tidak aktif",
+            "skip-gagal": "klik tombol Skip tidak berhasil",
+        }
+        reason = reasons.get(msg.get("reason"), str(msg.get("reason") or "tidak bisa di-skip"))
+        text = (f"{label} {reason} -> kembali ke URL lagu playlist "
+                f"(muat ulang {int(msg.get('attempt') or 1)}/{int(msg.get('max') or 1)}).")
+    elif ev == "adReloadLimit":
+        level = "WARNING"
+        holder["ad_phase"] = "batas muat ulang tercapai, dibiarkan selesai"
+        text = (f"{label}: batas muat ulang playlist ({int(msg.get('max') or 0)}x) sudah tercapai; "
+                f"iklan dibiarkan sampai selesai.")
+    elif ev == "adAfterSong":
+        text = "iklan muncul tepat setelah lagu selesai -> lanjut ke lagu berikutnya di playlist."
     elif ev == "adUnskippable":
         holder["ad_phase"] = "diputar sampai selesai (tanpa tombol Skip)"
         text = f"{label} tidak punya tombol Skip -> diputar sampai selesai."
@@ -1258,7 +1299,45 @@ def log_ad_event(ws, msg) -> None:
                 f"diputar penuh: {int(holder.get('ads_played_full', 0))}.")
     else:
         return
-    state.emit("log", {"text": f"{who}: {text}"})
+    state.emit("log", {"level": level, "text": f"{who}: {text}"})
+
+
+def log_track_event(ws, msg) -> None:
+    """Laporan pemeriksaan lagu: memastikan yang diputar adalah lagu di playlist."""
+    meta = state.clients.get(ws) or {}
+    profile_id = meta.get("browser_profile_id")
+    session = state.web_sessions.get(profile_id) if profile_id else None
+    if session is not None:
+        who = f"Watchdog: stream profil Dolphin {profile_id}"
+        holder = session
+    else:
+        who = f"Watchdog: instance {meta.get('label') or meta.get('instance_id') or 'tidak dikenal'}"
+        holder = meta
+    ev = msg.get("event")
+    try:
+        number = int(msg.get("index") or 0) + 1
+        total = int(msg.get("total") or 0)
+    except (TypeError, ValueError):
+        number, total = 0, 0
+    position = f"lagu ke-{number}/{total}" if total else f"lagu ke-{number}"
+    level = "INFO"
+    if ev == "trackMismatch":
+        level = "WARNING"
+        holder["track_corrections"] = int(holder.get("track_corrections", 0)) + 1
+        text = (f"lagu yang diputar bukan dari playlist (video {msg.get('actual') or '?'}, "
+                f"seharusnya {msg.get('expected') or '?'}; {position}) -> dikembalikan ke lagu playlist "
+                f"(percobaan {int(msg.get('attempt') or 1)}).")
+    elif ev == "trackRestored":
+        text = f"lagu playlist kembali diputar (video {msg.get('video') or '?'}; {position})."
+    elif ev == "trackMismatchFailed":
+        level = "WARNING"
+        text = (f"{position} tidak bisa dipulihkan (video {msg.get('actual') or '?'} terus menggantikan "
+                f"{msg.get('expected') or '?'}) -> lanjut ke lagu berikutnya.")
+    elif ev == "playResumedAfterAd":
+        text = f"{position} dilanjutkan otomatis setelah iklan."
+    else:
+        return
+    state.emit("log", {"level": level, "text": f"{who}: {text}"})
 
 
 async def ws_handler(ws):
@@ -1354,6 +1433,8 @@ async def ws_handler(ws):
                         handle_playlist_index_change(msg.get("url"), msg.get("index", 0), msg.get("total", 1), False)
                 elif ev in AD_EVENTS:
                     log_ad_event(ws, msg)
+                elif ev in TRACK_EVENTS:
+                    log_track_event(ws, msg)
             elif msg_type == "commandResult":
                 future = state.pending_commands.get(msg.get("requestId"))
                 if future and not future.done():
@@ -1681,10 +1762,13 @@ def _emit_watchdog_status(profile_id: str, session: dict, now: float, condition:
     if session.get("ad_active") and started and now - started > AD_STUCK_WARNING_SECONDS:
         level = "WARNING"
         note = f" PERINGATAN: iklan berjalan lebih dari {AD_STUCK_WARNING_SECONDS} detik."
+    corrections = int(session.get("track_corrections", 0))
+    corrections_text = f"; koreksi lagu: {corrections}" if corrections else ""
     state.emit("log", {
         "level": level,
         "text": f"Watchdog: stream profil Dolphin {profile_id} {condition}; {current_song}; "
-                f"status diterima {status_age} detik lalu; iklan: {describe_ad_status(session)}.{note}",
+                f"status diterima {status_age} detik lalu; iklan: {describe_ad_status(session)}"
+                f"{corrections_text}.{note}",
     })
 
 
